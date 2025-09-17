@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TotallyNormal - PBR Material Generator</title>
+    <meta name="description" content="Create PBR materials from photos. Generate albedo, normal, height, metallic, and occlusion maps instantly.">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#007acc">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="alternate icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNCIgZmlsbD0iIzAwN2FjYyIvPgo8Y2lyY2xlIGN4PSIxNiIgY3k9IjEyIiByPSI0IiBmaWxsPSJ3aGl0ZSIvPgo8cGF0aCBkPSJNOSAyMEwyMyAyMEwyMSAyNEgxMUw5IDIwWiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="logo">
+                <h1><i class="fas fa-cube"></i> TotallyNormal</h1>
+                <p>PBR Material Generator</p>
+            </div>
+            <nav class="nav">
+                <button class="nav-btn" data-section="capture">
+                    <i class="fas fa-camera"></i>
+                    <span>Capture</span>
+                </button>
+                <button class="nav-btn" data-section="materials">
+                    <i class="fas fa-palette"></i>
+                    <span>Materials</span>
+                </button>
+                <button class="nav-btn" data-section="about">
+                    <i class="fas fa-info-circle"></i>
+                    <span>About</span>
+                </button>
+                <button class="nav-btn" data-section="author">
+                    <i class="fas fa-user"></i>
+                    <span>Author</span>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Camera Capture Section -->
+        <section id="capture" class="section active">
+            <div class="container">
+                <div class="capture-area">
+                    <div class="camera-container">
+                        <video id="videoPreview" autoplay playsinline></video>
+                        <canvas id="captureCanvas" style="display: none;"></canvas>
+                        <img id="capturedImage" style="display: none;" alt="Captured photo">
+                        <div class="camera-overlay" id="cameraOverlay">
+                            <div class="capture-frame"></div>
+                            <button id="captureBtn" class="capture-btn">
+                                <i class="fas fa-camera"></i>
+                            </button>
+                        </div>
+                        <div class="preview-overlay" id="previewOverlay" style="display: none;">
+                            <div class="preview-actions">
+                                <button id="retakeBtn" class="action-btn retake">
+                                    <i class="fas fa-redo"></i>
+                                    Retake
+                                </button>
+                                <button id="processBtn" class="action-btn process">
+                                    <i class="fas fa-magic"></i>
+                                    Generate PBR
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mobile-friendly take picture button (appears at bottom when camera is active) -->
+                    <div id="mobileCaptureArea" class="mobile-capture-area" style="display: none;">
+                        <button id="mobileCaptureBtn" class="mobile-capture-btn">
+                            <i class="fas fa-camera"></i>
+                            <span>Take Picture</span>
+                        </button>
+                    </div>
+                    
+                    <div class="controls">
+                        <div class="resolution-selector">
+                            <label for="resolutionSelect">Texture Resolution:</label>
+                            <select id="resolutionSelect" class="resolution-select">
+                                <option value="256">256x256 (Fast)</option>
+                                <option value="512" selected>512x512 (Balanced)</option>
+                                <option value="1024">1024x1024 (High Quality)</option>
+                            </select>
+                        </div>
+                        <button id="startCameraBtn" class="btn btn-primary">
+                            <i class="fas fa-camera"></i>
+                            Start Camera
+                        </button>
+                        <button id="uploadBtn" class="btn btn-secondary">
+                            <i class="fas fa-upload"></i>
+                            Upload Image
+                        </button>
+                        <input type="file" id="imageUpload" accept="image/*" style="display: none;">
+                    </div>
+                    
+                    <div class="status" id="status">
+                        <p>Click "Start Camera" to begin capturing materials or upload an existing image</p>
+                        <div id="processingStatus" class="processing-status">
+                            <i class="fas fa-circle-notch fa-spin"></i>
+                            <span>Loading processing engine...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Materials Section -->
+        <section id="materials" class="section">
+            <div class="container">
+                <h2>Generated Material</h2>
+                
+                <!-- Material History Section -->
+                <div id="materialHistory" class="material-history" style="display: none;">
+                    <h3>Material History</h3>
+                    <div class="history-controls">
+                        <button id="clearHistoryBtn" class="btn btn-secondary">
+                            <i class="fas fa-trash"></i>
+                            Clear History
+                        </button>
+                        <span id="historyCount" class="history-count">0 materials saved</span>
+                    </div>
+                    <div id="historyGrid" class="history-grid"></div>
+                </div>
+                
+                <div id="materialPreview" class="material-preview" style="display: none;">
+                    <div class="material-info">
+                        <h3 id="materialName">Material</h3>
+                        <p id="materialDate">Created: <span></span></p>
+                    </div>
+                    
+                    <!-- 3D Preview Section -->
+                    <div class="preview-3d-section">
+                        <h3>3D Material Preview</h3>
+                        <div class="preview-3d-container">
+                            <div id="threejs-container" class="threejs-viewport"></div>
+                            <div class="preview-controls">
+                                <div class="geometry-toggle">
+                                    <label>Geometry:</label>
+                                    <button id="sphereBtn" class="geometry-btn active" data-geometry="sphere">
+                                        <i class="fas fa-circle"></i> Sphere
+                                    </button>
+                                    <button id="planeBtn" class="geometry-btn" data-geometry="plane">
+                                        <i class="fas fa-square"></i> Plane
+                                    </button>
+                                </div>
+                                <div class="material-sliders">
+                                    <div class="slider-group">
+                                        <label>
+                                            <span>Roughness</span>
+                                            <input type="range" id="roughnessSlider" min="0" max="1" step="0.01" value="0.5">
+                                            <span class="slider-value" id="roughnessValue">0.50</span>
+                                        </label>
+                                    </div>
+                                    <div class="slider-group">
+                                        <label>
+                                            <span>Metallic</span>
+                                            <input type="range" id="metallicSlider" min="0" max="1" step="0.01" value="0.0">
+                                            <span class="slider-value" id="metallicValue">0.00</span>
+                                        </label>
+                                    </div>
+                                    <div class="slider-group">
+                                        <label>
+                                            <span>Normal Intensity</span>
+                                            <input type="range" id="normalIntensity" min="0" max="3" step="0.1" value="1.0">
+                                            <span class="slider-value" id="normalValue">1.0</span>
+                                        </label>
+                                    </div>
+                                    <div class="slider-group">
+                                        <label>
+                                            <span>AO Intensity</span>
+                                            <input type="range" id="aoIntensity" min="0" max="2" step="0.1" value="1.0">
+                                            <span class="slider-value" id="aoValue">1.0</span>
+                                        </label>
+                                    </div>
+                                    <div class="slider-group">
+                                        <label>
+                                            <span>Displacement</span>
+                                            <input type="range" id="displacementScale" min="0" max="0.5" step="0.01" value="0.1">
+                                            <span class="slider-value" id="displacementValue">0.10</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <button id="resetCameraBtn" class="btn btn-secondary">
+                                    <i class="fas fa-refresh"></i>
+                                    Reset View
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="texture-grid">
+                        <div class="texture-card">
+                            <img id="albedoPreview" alt="Albedo">
+                            <h4>Albedo</h4>
+                            <button class="download-btn" data-texture="albedo">
+                                <i class="fas fa-download"></i>
+                                Download
+                            </button>
+                        </div>
+                        
+                        <div class="texture-card">
+                            <img id="normalPreview" alt="Normal">
+                            <h4>Normal</h4>
+                            <button class="download-btn" data-texture="normal">
+                                <i class="fas fa-download"></i>
+                                Download
+                            </button>
+                        </div>
+                        
+                        <div class="texture-card">
+                            <img id="heightPreview" alt="Height">
+                            <h4>Height</h4>
+                            <button class="download-btn" data-texture="height">
+                                <i class="fas fa-download"></i>
+                                Download
+                            </button>
+                        </div>
+                        
+                        <div class="texture-card">
+                            <img id="metallicPreview" alt="Metallic">
+                            <h4>Metallic</h4>
+                            <button class="download-btn" data-texture="metallic">
+                                <i class="fas fa-download"></i>
+                                Download
+                            </button>
+                        </div>
+                        
+                        <div class="texture-card">
+                            <img id="occlusionPreview" alt="Occlusion">
+                            <h4>Occlusion</h4>
+                            <button class="download-btn" data-texture="occlusion">
+                                <i class="fas fa-download"></i>
+                                Download
+                            </button>
+                        </div>
+                        
+                        <div class="texture-card">
+                            <img id="roughnessPreview" alt="Roughness">
+                            <h4>Roughness</h4>
+                            <button class="download-btn" data-texture="roughness">
+                                <i class="fas fa-download"></i>
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="download-actions">
+                        <button id="downloadAllBtn" class="btn btn-primary">
+                            <i class="fas fa-download"></i>
+                            Download All Textures
+                        </button>
+                        <button id="newMaterialBtn" class="btn btn-secondary">
+                            <i class="fas fa-plus"></i>
+                            Create New Material
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="noMaterial" class="no-material">
+                    <i class="fas fa-palette"></i>
+                    <h3>No Material Generated</h3>
+                    <p>Capture or upload an image to create your first PBR material</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section id="about" class="section">
+            <div class="container">
+                <h2>About TotallyNormal</h2>
+                <div class="about-content">
+                    <div class="about-text">
+                        <h3>Professional PBR Materials</h3>
+                        <p>TotallyNormal is designed for digital artists who need high-quality PBR materials for their projects. Capture textures from the real world and instantly generate all the maps you need for realistic 3D assets and renders.</p>
+                        
+                        <h4>Generated Textures:</h4>
+                        <ul>
+                            <li><strong>Albedo:</strong> Base color information</li>
+                            <li><strong>Normal:</strong> Surface detail and bumps</li>
+                            <li><strong>Height:</strong> Displacement information</li>
+                            <li><strong>Metallic:</strong> Metallic/non-metallic areas</li>
+                            <li><strong>Occlusion:</strong> Ambient occlusion for realism</li>
+                            <li><strong>Roughness:</strong> Surface roughness variation</li>
+                        </ul>
+                        
+                        <h4>Features:</h4>
+                        <ul>
+                            <li>Real-time camera capture</li>
+                            <li>Image upload support</li>
+                            <li>Instant PBR texture generation</li>
+                            <li>Individual texture downloads</li>
+                            <li>Complete material package export</li>
+                            <li>Mobile-friendly interface</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Author Section -->
+        <section id="author" class="section">
+            <div class="container">
+                <h2>About the Author</h2>
+                <div class="author-content">
+                    <div class="author-card">
+                        <div class="author-info">
+                            <h3>Tahri T</h3>
+                            <p class="author-title">Creative Developer & Digital Artist</p>
+                            <p class="author-description">
+                                Passionate about creating tools that empower artists and developers. 
+                                TotallyNormal was built to bridge the gap between real-world materials 
+                                and digital art workflows, making PBR texture creation accessible to everyone.
+                            </p>
+                            
+                            <div class="author-links">
+                                <a href="https://github.com/TahriT" target="_blank" class="author-link github">
+                                    <i class="fab fa-github"></i>
+                                    <span>GitHub</span>
+                                </a>
+                                <a href="https://tahri.tech" target="_blank" class="author-link website">
+                                    <i class="fas fa-globe"></i>
+                                    <span>Website</span>
+                                </a>
+                            </div>
+                            
+                            <div class="project-info">
+                                <h4>Project Details</h4>
+                                <ul>
+                                    <li><strong>Built with:</strong> Pure JavaScript, HTML5 Canvas, Three.js</li>
+                                    <li><strong>Version:</strong> 1.3.3</li>
+                                    <li><strong>License:</strong> Open Source</li>
+                                    <li><strong>Year:</strong> 2025</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Loading Modal -->
+    <div id="loadingModal" class="modal">
+        <div class="modal-content">
+            <div class="loading-spinner"></div>
+            <h3>Generating PBR Textures</h3>
+            <p>Processing your image...</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="errorModal" class="modal">
+        <div class="modal-content">
+            <i class="fas fa-exclamation-triangle error-icon"></i>
+            <h3>Error</h3>
+            <p id="errorMessage">Something went wrong</p>
+            <button id="closeErrorBtn" class="btn btn-primary">Close</button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Pure frontend processing - no external dependencies
+        console.log('🎯 Using optimized JavaScript algorithms');
+        
+        // Update status element immediately
+        document.addEventListener('DOMContentLoaded', () => {
+            const statusEl = document.getElementById('processingStatus');
+            if (statusEl) {
+                statusEl.innerHTML = '⚡ Processing engine ready - JavaScript algorithms enabled';
+                statusEl.className = 'processing-status ready';
+            }
+        });
+    </script>
+    <!-- Pure JavaScript implementation - no external CV libraries needed -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="js/textureGenerator.js"></script>
+    <script src="js/materialViewer3D.js"></script>
+    <script src="js/app.js"></script>
+    <script src="debug.js"></script>
+</body>
+</html>

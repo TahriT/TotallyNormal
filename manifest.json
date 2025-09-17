@@ -1,0 +1,31 @@
+{
+    "name": "TotallyNormal - PBR Material Generator",
+    "short_name": "TotallyNormal",
+    "description": "Generate PBR materials from photos for game development",
+    "start_url": "./",
+    "display": "standalone",
+    "background_color": "#0d0d1e",
+    "theme_color": "#00d4ff",
+    "orientation": "portrait",
+    "categories": ["graphics", "utilities", "games", "developer tools"],
+    "icons": [
+        {
+            "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiByeD0iMjQiIGZpbGw9IiMwMDdhY2MiLz4KPGNpcmNsZSBjeD0iOTYiIGN5PSI3MiIgcj0iMjQiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik01NCAxMjBMMTM4IDEyMEwxMjYgMTQ0SDY2TDU0IDEyMFoiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPgo=",
+            "type": "image/svg+xml",
+            "sizes": "192x192"
+        },
+        {
+            "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiByeD0iNjQiIGZpbGw9IiMwMDdhY2MiLz4KPGNpcmNsZSBjeD0iMjU2IiBjeT0iMTkyIiByPSI2NCIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTE0NCAzMjBMMzY4IDMyMEwzMzYgMzg0SDE3NkwxNDQgMzIwWiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+Cg==",
+            "type": "image/svg+xml",
+            "sizes": "512x512"
+        }
+    ],
+    "screenshots": [
+        {
+            "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjU2OCIgdmlld0JveD0iMCAwIDMyMCA1NjgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzMjAiIGhlaWdodD0iNTY4IiBmaWxsPSIjZjhmOWZhIi8+CjxyZWN0IHg9IjIwIiB5PSIyMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSI0MCIgcng9IjgiIGZpbGw9IndoaXRlIi8+CjxyZWN0IHg9IjIwIiB5PSI4MCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIyMDAiIHJ4PSI4IiBmaWxsPSIjZTFlNWU5Ii8+CjxyZWN0IHg9IjIwIiB5PSIzMDAiIHdpZHRoPSIyODAiIGhlaWdodD0iMjQ4IiByeD0iOCIgZmlsbD0id2hpdGUiLz4KPC9zdmc+",
+            "sizes": "320x568",
+            "type": "image/svg+xml",
+            "form_factor": "narrow"
+        }
+    ]
+}

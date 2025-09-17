@@ -1,0 +1,13 @@
+<!-- Placeholder for normal map example -->
+<svg width="256" height="256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="normalPattern" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
+      <rect width="32" height="32" fill="#8080ff"/>
+      <circle cx="16" cy="16" r="8" fill="#9090ff"/>
+      <circle cx="16" cy="16" r="4" fill="#a0a0ff"/>
+    </pattern>
+  </defs>
+  <rect width="256" height="256" fill="url(#normalPattern)"/>
+  <text x="128" y="140" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="16" font-weight="bold">NORMAL</text>
+  <text x="128" y="160" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="12">Surface Detail</text>
+</svg>
