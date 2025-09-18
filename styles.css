@@ -409,6 +409,34 @@ body {
     box-shadow: 0 8px 25px rgba(0, 212, 255, 0.2);
 }
 
+.url-input-section {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.url-input {
+    padding: var(--spacing-md);
+    border: 2px solid var(--border-light);
+    border-radius: var(--border-radius);
+    background: var(--surface-elevated);
+    color: var(--text-primary);
+    font-size: 1rem;
+    min-width: 300px;
+    transition: var(--transition);
+}
+
+.url-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+}
+
+.url-input::placeholder {
+    color: var(--text-light);
+}
+
 .status {
     background: var(--gradient-surface);
     padding: var(--spacing-lg);
@@ -512,6 +540,8 @@ body {
     border: 1px solid var(--border-light);
     overflow: hidden;
     position: relative;
+    touch-action: none; /* Prevent default touch behaviors for better control */
+    user-select: none; /* Prevent text selection */
 }
 
 .preview-controls {
@@ -798,6 +828,19 @@ body {
         width: 100%;
         max-width: 300px;
         justify-content: center;
+    }
+    
+    .url-input-section {
+        flex-direction: column;
+        width: 100%;
+        max-width: 300px;
+        margin: 0 auto;
+    }
+    
+    .url-input {
+        min-width: auto;
+        width: 100%;
+        max-width: 100%;
     }
     
     /* 3D Preview responsive */
