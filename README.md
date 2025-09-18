@@ -8,9 +8,9 @@ Ever taken a photo of an interesting surface and wished you could use it as a 3D
 
 - **📸 Snap & Go**: Use your phone camera or upload existing photos
 - **🎨 Instant Results**: Generates all PBR maps automatically 
-- **� No Installation**: Works entirely in your browser
-- **� Mobile Friendly**: Optimized for phones and tablets
-- **� Privacy First**: All processing happens locally - your images never leave your device
+- **🌐 No Installation**: Works entirely in your browser
+- **📱 Mobile Friendly**: Optimized for phones and tablets
+- **🔒 Privacy First**: All processing happens locally - your images never leave your device
 
 ## The Magic Behind It
 

@@ -843,6 +843,19 @@ body {
         max-width: 100%;
     }
     
+    .edge-detection-selector {
+        flex-direction: column;
+        width: 100%;
+        max-width: 300px;
+        margin: 0 auto;
+    }
+    
+    .edge-detection-select {
+        min-width: auto;
+        width: 100%;
+        max-width: 100%;
+    }
+    
     /* 3D Preview responsive */
     .preview-3d-container {
         grid-template-columns: 1fr;
@@ -1200,6 +1213,43 @@ body {
 }
 
 .resolution-select option {
+    background: var(--surface-elevated);
+    color: var(--text-primary);
+}
+
+.edge-detection-selector {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.edge-detection-selector label {
+    color: var(--text-primary);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.edge-detection-select {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius-small);
+    color: var(--text-primary);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: var(--transition);
+    min-width: 200px;
+}
+
+.edge-detection-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+}
+
+.edge-detection-select option {
     background: var(--surface-elevated);
     color: var(--text-primary);
 }
