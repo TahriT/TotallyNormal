@@ -39,21 +39,22 @@ class MaterialViewer3D {
             this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
             this.camera.position.set(0, 0, 3);
 
-            // Renderer setup
-            this.renderer = new THREE.WebGLRenderer({ 
-                antialias: true,
-                alpha: true 
-            });
-            this.renderer.setSize(width, height);
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            this.renderer.shadowMap.enabled = true;
-            this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            this.renderer.toneMappingExposure = 1;
-            
-            this.container.appendChild(this.renderer.domElement);
-
-            // Lighting setup
+        // Renderer setup
+        this.renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            alpha: true 
+        });
+        this.renderer.setSize(width, height);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1;
+        
+        // Enable touch action for better mobile performance
+        this.renderer.domElement.style.touchAction = 'none';
+        
+        this.container.appendChild(this.renderer.domElement);            // Lighting setup
             this.setupLighting();
 
             // Create default geometry (sphere to showcase material)
@@ -118,7 +119,7 @@ class MaterialViewer3D {
     }
 
     setupControls() {
-        // Simple mouse controls for rotation
+        // Mouse controls for desktop
         let isDragging = false;
         let previousMousePosition = { x: 0, y: 0 };
 
@@ -129,22 +130,7 @@ class MaterialViewer3D {
 
         this.renderer.domElement.addEventListener('mousemove', (e) => {
             if (!isDragging) return;
-
-            const deltaMove = {
-                x: e.clientX - previousMousePosition.x,
-                y: e.clientY - previousMousePosition.y
-            };
-
-            const deltaRotationQuaternion = new THREE.Quaternion()
-                .setFromEuler(new THREE.Euler(
-                    toRadians(deltaMove.y * 0.5),
-                    toRadians(deltaMove.x * 0.5),
-                    0,
-                    'XYZ'
-                ));
-
-            this.mesh.quaternion.multiplyQuaternions(deltaRotationQuaternion, this.mesh.quaternion);
-
+            this.handleRotation(e.clientX, e.clientY, previousMousePosition);
             previousMousePosition = { x: e.clientX, y: e.clientY };
         });
 
@@ -152,13 +138,87 @@ class MaterialViewer3D {
             isDragging = false;
         });
 
-        // Mouse wheel for zoom
+        // Touch controls for mobile
+        let isTouching = false;
+        let previousTouchPosition = { x: 0, y: 0 };
+        let touchStartDistance = 0;
+        let initialCameraZ = this.camera.position.z;
+
+        this.renderer.domElement.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            
+            if (e.touches.length === 1) {
+                // Single touch - rotation
+                isTouching = true;
+                const touch = e.touches[0];
+                previousTouchPosition = { x: touch.clientX, y: touch.clientY };
+            } else if (e.touches.length === 2) {
+                // Two finger touch - zoom (pinch)
+                isTouching = false; // Disable rotation during pinch
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                touchStartDistance = Math.sqrt(
+                    Math.pow(touch2.clientX - touch1.clientX, 2) +
+                    Math.pow(touch2.clientY - touch1.clientY, 2)
+                );
+                initialCameraZ = this.camera.position.z;
+            }
+        });
+
+        this.renderer.domElement.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            
+            if (e.touches.length === 1 && isTouching) {
+                // Single touch - rotation
+                const touch = e.touches[0];
+                this.handleRotation(touch.clientX, touch.clientY, previousTouchPosition);
+                previousTouchPosition = { x: touch.clientX, y: touch.clientY };
+            } else if (e.touches.length === 2) {
+                // Two finger touch - zoom (pinch)
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                const currentDistance = Math.sqrt(
+                    Math.pow(touch2.clientX - touch1.clientX, 2) +
+                    Math.pow(touch2.clientY - touch1.clientY, 2)
+                );
+                
+                if (touchStartDistance > 0) {
+                    const zoomFactor = touchStartDistance / currentDistance;
+                    this.camera.position.z = Math.max(1.5, Math.min(10, initialCameraZ * zoomFactor));
+                }
+            }
+        });
+
+        this.renderer.domElement.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            isTouching = false;
+            touchStartDistance = 0;
+        });
+
+        // Mouse wheel for zoom (desktop)
         this.renderer.domElement.addEventListener('wheel', (e) => {
             e.preventDefault();
             const zoomSpeed = 0.1;
             this.camera.position.z += e.deltaY * zoomSpeed * 0.01;
             this.camera.position.z = Math.max(1.5, Math.min(10, this.camera.position.z));
         });
+    }
+
+    handleRotation(currentX, currentY, previousPosition) {
+        const deltaMove = {
+            x: currentX - previousPosition.x,
+            y: currentY - previousPosition.y
+        };
+
+        const deltaRotationQuaternion = new THREE.Quaternion()
+            .setFromEuler(new THREE.Euler(
+                toRadians(deltaMove.y * 0.5),
+                toRadians(deltaMove.x * 0.5),
+                0,
+                'XYZ'
+            ));
+
+        this.mesh.quaternion.multiplyQuaternions(deltaRotationQuaternion, this.mesh.quaternion);
 
         // Helper function
         function toRadians(angle) {

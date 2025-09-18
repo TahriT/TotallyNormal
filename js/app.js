@@ -35,6 +35,8 @@ class LiveNormalApp {
         this.captureBtn = document.getElementById('captureBtn');
         this.uploadBtn = document.getElementById('uploadBtn');
         this.imageUpload = document.getElementById('imageUpload');
+        this.imageUrlInput = document.getElementById('imageUrlInput');
+        this.loadUrlBtn = document.getElementById('loadUrlBtn');
         this.retakeBtn = document.getElementById('retakeBtn');
         this.processBtn = document.getElementById('processBtn');
         this.newMaterialBtn = document.getElementById('newMaterialBtn');
@@ -201,9 +203,15 @@ class LiveNormalApp {
 
         // Camera controls
         this.startCameraBtn.addEventListener('click', () => this.startCamera());
-        this.captureBtn.addEventListener('click', () => this.capturePhoto());
+        this.captureBtn.addEventListener('click', () => this.handleCaptureButtonClick());
         this.uploadBtn.addEventListener('click', () => this.imageUpload.click());
         this.imageUpload.addEventListener('change', (e) => this.handleImageUpload(e));
+        this.loadUrlBtn.addEventListener('click', () => this.handleUrlLoad());
+        this.imageUrlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.handleUrlLoad();
+            }
+        });
         
         // Preview controls
         this.retakeBtn.addEventListener('click', () => this.retakePhoto());
@@ -272,7 +280,7 @@ class LiveNormalApp {
         this.clearHistoryBtn?.addEventListener('click', () => this.clearMaterialHistory());
         
         // Mobile capture button
-        this.mobileCaptureBtn?.addEventListener('click', () => this.capturePhoto());
+        this.mobileCaptureBtn?.addEventListener('click', () => this.handleCaptureButtonClick());
         
         this.resetCameraBtn?.addEventListener('click', () => {
             window.materialViewer3D?.resetCamera();
@@ -391,6 +399,16 @@ class LiveNormalApp {
         }
     }
 
+    handleCaptureButtonClick() {
+        // If camera is not active, start it first
+        if (!this.isVideoActive()) {
+            this.startCamera();
+        } else {
+            // Camera is active, capture photo
+            this.capturePhoto();
+        }
+    }
+
     setupCanvas() {
         this.canvas.width = this.video.videoWidth;
         this.canvas.height = this.video.videoHeight;
@@ -492,6 +510,70 @@ class LiveNormalApp {
         this.previewOverlay.style.display = 'flex';
         
         this.updateStatus('Image uploaded! Click "Generate PBR" to create materials or upload a different image.');
+    }
+
+    async handleUrlLoad() {
+        const url = this.imageUrlInput?.value?.trim();
+        if (!url) {
+            this.showError('Please enter a valid image URL.');
+            return;
+        }
+
+        // Basic URL validation
+        try {
+            new URL(url);
+        } catch (error) {
+            this.showError('Please enter a valid URL.');
+            return;
+        }
+
+        // Check if URL appears to be an image
+        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+        const urlLower = url.toLowerCase();
+        const hasImageExtension = imageExtensions.some(ext => urlLower.includes(ext));
+        
+        if (!hasImageExtension && !url.includes('data:image/')) {
+            const proceed = confirm('This URL may not be an image. Do you want to try loading it anyway?');
+            if (!proceed) return;
+        }
+
+        try {
+            this.updateStatus('Loading image from URL...');
+            
+            // Create an image element to test if the URL is valid
+            const img = new Image();
+            img.crossOrigin = 'anonymous'; // Enable CORS for cross-origin images
+            
+            img.onload = () => {
+                // Convert the image to a blob
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        this.capturedImageBlob = blob;
+                        this.showUploadedImagePreview(blob);
+                        this.imageUrlInput.value = ''; // Clear the input
+                    } else {
+                        this.showError('Failed to process the image from URL.');
+                    }
+                }, 'image/jpeg', 0.9);
+            };
+            
+            img.onerror = () => {
+                this.showError('Failed to load image from URL. Please check the URL and try again.');
+                this.updateStatus('URL load failed. Try uploading an image file instead.');
+            };
+            
+            img.src = url;
+            
+        } catch (error) {
+            console.error('URL load error:', error);
+            this.showError('Failed to load image from URL. Please try again.');
+        }
     }
 
     async processImage(imageSource) {
