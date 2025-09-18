@@ -24,7 +24,7 @@ class PBRTextureGenerator {
         }
     }
 
-    async generatePBRTextures(image, resolution = 512) {
+    async generatePBRTextures(image, resolution = 512, edgeDetection = 'sobel') {
         // Prevent simultaneous generation calls
         if (this._isGenerating) {
             const error = new Error('Texture generation already in progress');
@@ -33,10 +33,10 @@ class PBRTextureGenerator {
         }
         
         this._isGenerating = true;
-        console.log(`🚀 Starting PBR texture generation (${resolution}x${resolution})`);
+        console.log(`🚀 Starting PBR texture generation (${resolution}x${resolution}, ${edgeDetection} edges)`);
         
         try {
-            const result = await this.generateTexturesFallback(image, resolution);
+            const result = await this.generateTexturesFallback(image, resolution, edgeDetection);
             this._isGenerating = false;
             return result;
         } catch (error) {
@@ -46,8 +46,8 @@ class PBRTextureGenerator {
         }
     }
 
-    async generateTexturesFallback(image, resolution = 512) {
-        console.log(`🔧 Using JavaScript algorithms (${resolution}x${resolution})`);
+    async generateTexturesFallback(image, resolution = 512, edgeDetection = 'sobel') {
+        console.log(`🔧 Using JavaScript algorithms (${resolution}x${resolution}, ${edgeDetection} edge detection)`);
         
         // Use the provided resolution
         const targetSize = resolution;
@@ -85,9 +85,9 @@ class PBRTextureGenerator {
         textures.height = this.generateHeightFallback(baseImageData);
         console.log('✅ Height map generated');
         
-        // Normal map
-        textures.normal = this.generateNormalFallback(baseImageData);
-        console.log('✅ Normal map generated');
+        // Normal map (with selected edge detection algorithm)
+        textures.normal = this.generateNormalFallback(baseImageData, edgeDetection);
+        console.log(`✅ Normal map generated using ${edgeDetection} edge detection`);
         
         // Metallic map
         textures.metallic = this.generateMetallicFallback(baseImageData);
@@ -213,8 +213,8 @@ class PBRTextureGenerator {
         return this.imageDataToDataUrl(outputData);
     }
 
-    generateNormalFallback(imageData) {
-        console.log('🗺️ Generating normal map with enhanced gradient calculation...');
+    generateNormalFallback(imageData, edgeDetection = 'sobel') {
+        console.log(`🗺️ Generating normal map with ${edgeDetection} edge detection...`);
         
         const width = imageData.width;
         const height = imageData.height;
@@ -231,7 +231,7 @@ class PBRTextureGenerator {
             heightMap[i / 4] = gray;
         }
         
-        // Calculate normals with proper Sobel operators
+        // Calculate normals with selected edge detection algorithm
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 const idx = y * width + x;
@@ -243,19 +243,27 @@ class PBRTextureGenerator {
                     return heightMap[py * width + px];
                 };
                 
-                // Sobel operators for gradient calculation
-                const tl = getHeight(x - 1, y - 1); const tc = getHeight(x, y - 1); const tr = getHeight(x + 1, y - 1);
-                const ml = getHeight(x - 1, y);     /* center */                   const mr = getHeight(x + 1, y);
-                const bl = getHeight(x - 1, y + 1); const bc = getHeight(x, y + 1); const br = getHeight(x + 1, y + 1);
+                let dx = 0, dy = 0;
                 
-                // Sobel X gradient
-                const dx = (-1 * tl + 1 * tr +
-                           -2 * ml + 2 * mr +
-                           -1 * bl + 1 * br) / 8.0;
-                
-                // Sobel Y gradient  
-                const dy = (-1 * tl - 2 * tc - 1 * tr +
-                            1 * bl + 2 * bc + 1 * br) / 8.0;
+                // Apply different edge detection algorithms
+                switch (edgeDetection) {
+                    case 'scharr':
+                        ({ dx, dy } = this.calculateScharrGradient(getHeight, x, y));
+                        break;
+                    case 'prewitt':
+                        ({ dx, dy } = this.calculatePrewittGradient(getHeight, x, y));
+                        break;
+                    case 'roberts':
+                        ({ dx, dy } = this.calculateRobertsGradient(getHeight, x, y));
+                        break;
+                    case 'laplacian':
+                        ({ dx, dy } = this.calculateLaplacianGradient(getHeight, x, y));
+                        break;
+                    case 'sobel':
+                    default:
+                        ({ dx, dy } = this.calculateSobelGradient(getHeight, x, y));
+                        break;
+                }
                 
                 // Calculate normal vector
                 const strength = 2.0; // Normal map strength
@@ -288,10 +296,97 @@ class PBRTextureGenerator {
             blueSum += outputData.data[i];
         }
         const avgBlue = blueSum / (width * height);
-        console.log(`📊 Normal map stats: Average blue channel = ${avgBlue.toFixed(1)} (should be >128 for good quality)`);
+        console.log(`📊 Normal map stats (${edgeDetection}): Average blue channel = ${avgBlue.toFixed(1)} (should be >128 for good quality)`);
         
-        console.log('✅ Normal map generation complete with enhanced quality');
+        console.log(`✅ Normal map generation complete using ${edgeDetection} edge detection`);
         return this.imageDataToDataUrl(outputData);
+    }
+
+    // Edge Detection Algorithm Methods
+    calculateSobelGradient(getHeight, x, y) {
+        // Standard Sobel operators
+        const tl = getHeight(x - 1, y - 1); const tc = getHeight(x, y - 1); const tr = getHeight(x + 1, y - 1);
+        const ml = getHeight(x - 1, y);     /* center */                   const mr = getHeight(x + 1, y);
+        const bl = getHeight(x - 1, y + 1); const bc = getHeight(x, y + 1); const br = getHeight(x + 1, y + 1);
+        
+        // Sobel X gradient
+        const dx = (-1 * tl + 1 * tr +
+                   -2 * ml + 2 * mr +
+                   -1 * bl + 1 * br) / 8.0;
+        
+        // Sobel Y gradient  
+        const dy = (-1 * tl - 2 * tc - 1 * tr +
+                    1 * bl + 2 * bc + 1 * br) / 8.0;
+        
+        return { dx, dy };
+    }
+
+    calculateScharrGradient(getHeight, x, y) {
+        // Scharr operators (improved rotation invariance)
+        const tl = getHeight(x - 1, y - 1); const tc = getHeight(x, y - 1); const tr = getHeight(x + 1, y - 1);
+        const ml = getHeight(x - 1, y);     /* center */                   const mr = getHeight(x + 1, y);
+        const bl = getHeight(x - 1, y + 1); const bc = getHeight(x, y + 1); const br = getHeight(x + 1, y + 1);
+        
+        // Scharr X gradient
+        const dx = (-3 * tl + 3 * tr +
+                   -10 * ml + 10 * mr +
+                   -3 * bl + 3 * br) / 32.0;
+        
+        // Scharr Y gradient
+        const dy = (-3 * tl - 10 * tc - 3 * tr +
+                    3 * bl + 10 * bc + 3 * br) / 32.0;
+        
+        return { dx, dy };
+    }
+
+    calculatePrewittGradient(getHeight, x, y) {
+        // Prewitt operators (simple and fast)
+        const tl = getHeight(x - 1, y - 1); const tc = getHeight(x, y - 1); const tr = getHeight(x + 1, y - 1);
+        const ml = getHeight(x - 1, y);     /* center */                   const mr = getHeight(x + 1, y);
+        const bl = getHeight(x - 1, y + 1); const bc = getHeight(x, y + 1); const br = getHeight(x + 1, y + 1);
+        
+        // Prewitt X gradient
+        const dx = (-1 * tl + 1 * tr +
+                   -1 * ml + 1 * mr +
+                   -1 * bl + 1 * br) / 6.0;
+        
+        // Prewitt Y gradient
+        const dy = (-1 * tl - 1 * tc - 1 * tr +
+                    1 * bl + 1 * bc + 1 * br) / 6.0;
+        
+        return { dx, dy };
+    }
+
+    calculateRobertsGradient(getHeight, x, y) {
+        // Roberts Cross-Gradient (2x2 kernel)
+        const center = getHeight(x, y);
+        const right = getHeight(x + 1, y);
+        const below = getHeight(x, y + 1);
+        const diag = getHeight(x + 1, y + 1);
+        
+        // Roberts cross gradients
+        const dx = (diag - center) / 2.0;
+        const dy = (below - right) / 2.0;
+        
+        return { dx, dy };
+    }
+
+    calculateLaplacianGradient(getHeight, x, y) {
+        // Laplacian edge detection (converted to gradient approximation)
+        const center = getHeight(x, y);
+        const top = getHeight(x, y - 1);
+        const bottom = getHeight(x, y + 1);
+        const left = getHeight(x - 1, y);
+        const right = getHeight(x + 1, y);
+        
+        // Laplacian kernel approximated as gradients
+        const laplacian = (4 * center - top - bottom - left - right);
+        
+        // Convert to directional gradients
+        const dx = (right - left) / 2.0 + laplacian * 0.1;
+        const dy = (bottom - top) / 2.0 + laplacian * 0.1;
+        
+        return { dx, dy };
     }
 
     generateMetallicFallback(imageData) {

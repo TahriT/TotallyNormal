@@ -99,6 +99,16 @@
                                 <option value="1024">1024x1024 (High Quality)</option>
                             </select>
                         </div>
+                        <div class="edge-detection-selector">
+                            <label for="edgeDetectionSelect">Edge Detection:</label>
+                            <select id="edgeDetectionSelect" class="edge-detection-select">
+                                <option value="sobel" selected>Sobel Operator (Standard)</option>
+                                <option value="scharr">Scharr Operator (Enhanced)</option>
+                                <option value="prewitt">Prewitt Operator (Classic)</option>
+                                <option value="roberts">Roberts Cross-Gradient</option>
+                                <option value="laplacian">Laplacian Edge Detection</option>
+                            </select>
+                        </div>
                         <button id="startCameraBtn" class="btn btn-primary">
                             <i class="fas fa-camera"></i>
                             Start Camera

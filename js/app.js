@@ -107,6 +107,9 @@ class LiveNormalApp {
         // Resolution selector
         this.resolutionSelect = document.getElementById('resolutionSelect');
         
+        // Edge detection selector
+        this.edgeDetectionSelect = document.getElementById('edgeDetectionSelect');
+        
         // Slider value displays
         this.roughnessValue = document.getElementById('roughnessValue');
         this.metallicValue = document.getElementById('metallicValue');
@@ -589,9 +592,10 @@ class LiveNormalApp {
             this.showModal('loadingModal');
             this.updateProgress(0);
             
-            // Get selected resolution
+            // Get selected resolution and edge detection algorithm
             const selectedResolution = parseInt(this.resolutionSelect?.value || '512');
-            console.log(`🎯 Processing with resolution: ${selectedResolution}x${selectedResolution}`);
+            const selectedEdgeDetection = this.edgeDetectionSelect?.value || 'sobel';
+            console.log(`🎯 Processing with resolution: ${selectedResolution}x${selectedResolution}, edge detection: ${selectedEdgeDetection}`);
             
             // Create image element from source
             const img = new Image();
@@ -603,7 +607,7 @@ class LiveNormalApp {
                     this.updateProgress(20);
                     await this.delay(100); // Small delay for UI update
                     
-                    const textures = await window.textureGenerator.generatePBRTextures(img, selectedResolution);
+                    const textures = await window.textureGenerator.generatePBRTextures(img, selectedResolution, selectedEdgeDetection);
                     
                     this.updateProgress(90);
                     await this.delay(100);
