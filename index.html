@@ -6,6 +6,11 @@
     <title>TotallyNormal - PBR Material Generator</title>
     <meta name="description" content="Create PBR materials from photos. Generate albedo, normal, height, metallic, and occlusion maps instantly.">
     
+    <!-- Cache Control - Force refresh -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#007acc">
@@ -15,7 +20,15 @@
     <link rel="alternate icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNCIgZmlsbD0iIzAwN2FjYyIvPgo8Y2lyY2xlIGN4PSIxNiIgY3k9IjEyIiByPSI0IiBmaWxsPSJ3aGl0ZSIvPgo8cGF0aCBkPSJNOSAyMEwyMyAyMEwyMSAyNEgxMUw5IDIwWiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+">
     
     <!-- CSS -->
-    <link rel="stylesheet" href="styles.css">
+    <script>
+        // Dynamic CSS loading with timestamp cache busting
+        const cssTimestamp = Date.now();
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = `styles.css?v=1.4.1&t=${cssTimestamp}`;
+        document.head.appendChild(link);
+        console.log('🎨 CSS loaded with cache bust timestamp:', cssTimestamp);
+    </script>
     
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -30,6 +43,18 @@
             <div class="logo">
                 <h1><i class="fas fa-cube"></i> TotallyNormal</h1>
                 <p>PBR Material Generator</p>
+            </div>
+            <div class="header-controls">
+                <!-- Offline/Online Status -->
+                <div id="networkStatus" class="network-status" style="display: none;">
+                    <i class="fas fa-wifi"></i>
+                    <span id="networkStatusText">Online</span>
+                </div>
+                <!-- PWA Install Button -->
+                <button id="pwaInstallBtn" class="pwa-install-btn" style="display: none;">
+                    <i class="fas fa-download"></i>
+                    <span>Install App</span>
+                </button>
             </div>
             <nav class="nav">
                 <button class="nav-btn" data-section="capture">
@@ -160,23 +185,71 @@
                     <div class="material-info">
                         <h3 id="materialName">Material</h3>
                         <p id="materialDate">Created: <span></span></p>
+                        <div id="tilingInfo" class="tiling-info" style="display: none;">
+                            <h4><i class="fas fa-sync-alt"></i> Tiling Applied</h4>
+                            <div id="tilingDetails" class="tiling-details"></div>
+                        </div>
                     </div>
                     
                     <!-- 3D Preview Section -->
                     <div class="preview-3d-section">
                         <h3>3D Material Preview</h3>
-                        <div class="preview-3d-container">
-                            <div id="threejs-container" class="threejs-viewport"></div>
-                            <div class="preview-controls">
+                        
+                        <!-- 3D Viewer Takes Top Space -->
+                        <div id="threejs-container" class="threejs-viewport-large">
+                            <!-- Three.js will create canvas here -->
+                        </div>
+                        
+                        <!-- All Controls Below -->
+                        <div class="material-controls-panel">
+                            <!-- Geometry Controls -->
+                            <div class="control-group">
+                                <h4>Geometry & Tiling</h4>
                                 <div class="geometry-toggle">
-                                    <label>Geometry:</label>
-                                    <button id="sphereBtn" class="geometry-btn active" data-geometry="sphere">
+                                    <button id="cubeBtn" class="geometry-btn" data-geometry="cube">
+                                        <i class="fas fa-cube"></i> Cube
+                                    </button>
+                                    <button id="sphereBtn" class="geometry-btn" data-geometry="sphere">
                                         <i class="fas fa-circle"></i> Sphere
                                     </button>
-                                    <button id="planeBtn" class="geometry-btn" data-geometry="plane">
+                                    <button id="planeBtn" class="geometry-btn active" data-geometry="plane">
                                         <i class="fas fa-square"></i> Plane
                                     </button>
+                                    <button id="resetCameraBtn" class="btn btn-secondary">
+                                        <i class="fas fa-refresh"></i>
+                                        Reset View
+                                    </button>
                                 </div>
+                                
+                                <!-- Tiling Controls Integrated -->
+                                <div class="tiling-controls-section">
+                                    <div class="tiling-selector">
+                                        <button id="applyTilingBtn" class="btn btn-secondary">
+                                            <i class="fas fa-sync-alt"></i>
+                                            Apply Seamless Tiling
+                                        </button>
+                                    </div>
+                                    <div class="tiling-zoom-controls" id="tilingZoomControls">
+                                        <label for="tilingZoom">
+                                            <i class="fas fa-search"></i>
+                                            Tiling Zoom: <span id="tilingZoomValue">1.0x</span>
+                                        </label>
+                                        <div class="zoom-slider-container">
+                                            <input type="range" id="tilingZoom" min="0.25" max="8" step="0.25" value="1" class="zoom-slider">
+                                            <div class="zoom-presets">
+                                                <button class="zoom-preset-btn" data-zoom="0.5">0.5x</button>
+                                                <button class="zoom-preset-btn" data-zoom="1">1x</button>
+                                                <button class="zoom-preset-btn" data-zoom="2">2x</button>
+                                                <button class="zoom-preset-btn" data-zoom="4">4x</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Material Property Sliders -->
+                            <div class="control-group">
+                                <h4>Material Properties</h4>
                                 <div class="material-sliders">
                                     <div class="slider-group">
                                         <label>
@@ -214,11 +287,9 @@
                                         </label>
                                     </div>
                                 </div>
-                                <button id="resetCameraBtn" class="btn btn-secondary">
-                                    <i class="fas fa-refresh"></i>
-                                    Reset View
-                                </button>
                             </div>
+                            
+                            <!-- Tiling Controls -->
                         </div>
                     </div>
                     
@@ -339,9 +410,10 @@
                     <div class="author-card">
                         <div class="author-info">
                             <h3>Tahri T</h3>
-                            <p class="author-title">Creative Developer & Digital Artist</p>
+                            <p class="author-title">Tech Guy & Engineer</p>
                             <p class="author-description">
-                                Passionate about creating tools that empower artists and developers. 
+                                Passionate about technology, and making it accessible to all.
+                                Free, simple, no-strings attached tools and applications are at the core of my work. 
                                 TotallyNormal was built to bridge the gap between real-world materials 
                                 and digital art workflows, making PBR texture creation accessible to everyone.
                             </p>
@@ -361,7 +433,7 @@
                                 <h4>Project Details</h4>
                                 <ul>
                                     <li><strong>Built with:</strong> Pure JavaScript, HTML5 Canvas, Three.js</li>
-                                    <li><strong>Version:</strong> 1.3.3</li>
+                                    <li><strong>Version:</strong> 1.4.1</li>
                                     <li><strong>License:</strong> Open Source</li>
                                     <li><strong>Year:</strong> 2025</li>
                                 </ul>
@@ -395,10 +467,56 @@
         </div>
     </div>
 
+    <!-- PWA Install Modal -->
+    <div id="pwaInstallModal" class="modal">
+        <div class="modal-content pwa-modal">
+            <div class="pwa-icon">
+                <i class="fas fa-mobile-alt"></i>
+            </div>
+            <h3>Install TotallyNormal</h3>
+            <p>Install this app on your device for the best experience:</p>
+            <ul class="pwa-benefits">
+                <li><i class="fas fa-check"></i> Works completely offline</li>
+                <li><i class="fas fa-check"></i> Faster load times</li>
+                <li><i class="fas fa-check"></i> Full-screen experience</li>
+                <li><i class="fas fa-check"></i> Access from your home screen</li>
+            </ul>
+            <div class="pwa-actions">
+                <button id="installPwaBtn" class="btn btn-primary">
+                    <i class="fas fa-download"></i>
+                    Install Now
+                </button>
+                <button id="cancelInstallBtn" class="btn btn-secondary">Maybe Later</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Offline Banner -->
+    <div id="offlineBanner" class="offline-banner" style="display: none;">
+        <div class="offline-content">
+            <i class="fas fa-wifi-slash"></i>
+            <span>You're offline - App is cached and ready to work!</span>
+            <button id="dismissOfflineBanner" class="dismiss-offline">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script>
         // Pure frontend processing - no external dependencies
         console.log('🎯 Using optimized JavaScript algorithms');
+        
+        // Dynamic cache busting with timestamp
+        const CACHE_BUST = Date.now();
+        window.APP_VERSION = '1.4.1';
+        window.CACHE_BUST = CACHE_BUST;
+        
+        // Force reload scripts with timestamp if needed
+        if (!window.scriptsCacheBusted) {
+            window.scriptsCacheBusted = true;
+            console.log('🔄 Cache busting enabled:', CACHE_BUST);
+        }
         
         // Update status element immediately
         document.addEventListener('DOMContentLoaded', () => {
@@ -412,9 +530,14 @@
     <!-- Pure JavaScript implementation - no external CV libraries needed -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="js/textureGenerator.js"></script>
-    <script src="js/materialViewer3D.js"></script>
-    <script src="js/app.js"></script>
     <script src="debug.js"></script>
+    <script>
+        // Simple but effective cache busting with timestamp
+        const cacheBustTimestamp = Date.now();
+        console.log('📦 Loading scripts with timestamp cache busting:', cacheBustTimestamp);
+    </script>
+    <script src="js/textureGenerator.js?v=1.4.1" defer></script>
+    <script src="js/materialViewer3D.js?v=1.4.1" defer></script>
+    <script src="js/app.js?v=1.4.1" defer></script>
 </body>
 </html>

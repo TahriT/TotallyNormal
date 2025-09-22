@@ -9,7 +9,7 @@ Ever taken a photo of an interesting surface and wished you could use it as a 3D
 - **📸 Snap & Go**: Use your phone camera or upload existing photos
 - **🎨 Instant Results**: Generates all PBR maps automatically 
 - **🌐 No Installation**: Works entirely in your browser
-- **📱 Mobile Friendly**: Optimized for phones and tablets
+- **📱 Mobile Friendly**: Optimized for phones and tablets with touch controls
 - **🔒 Privacy First**: All processing happens locally - your images never leave your device
 
 ## The Magic Behind It
@@ -19,47 +19,68 @@ TotallyNormal analyzes your photo and creates six essential PBR texture maps:
 ### **Albedo** - The True Colors
 *What the surface actually looks like without any lighting or shadows*
 
-![Albedo Example](docs/images/albedo-example.svg)
+![Albedo Example](docs/images/albedo-example.png)
 
 ### **Normal Map** - Surface Details  
 *Bumps, scratches, and texture that make surfaces look real*
 
-![Normal Example](docs/images/normal-example.svg)
+![Normal Example](docs/images/normal-example.png)
 
 ### **Height Map** - Depth Information
 *How raised or recessed different parts of the surface are*
 
-![Height Example](docs/images/height-example.svg)
+![Height Example](docs/images/height-example.png)
 
 ### **Metallic Map** - Material Classification
 *Which parts are metal vs. non-metal (like paint, plastic, fabric)*
 
-![Metallic Example](docs/images/metallic-example.svg)
+![Metallic Example](docs/images/metallic-example.png)
 
 ### **Ambient Occlusion** - Natural Shadows
 *Where light gets trapped in crevices for realistic depth*
 
-![Occlusion Example](docs/images/occlusion-example.svg)
+![Occlusion Example](docs/images/occlusion-example.png)
 
 ### **Roughness Map** - Surface Finish
 *Glossy vs. matte areas across the material*
 
-![Roughness Example](docs/images/roughness-example.svg)
+![Roughness Example](docs/images/roughness-example.png)
+
+## Edge Detection Algorithm Comparison
+
+TotallyNormal offers multiple edge detection algorithms for normal map generation. Here's how they compare using the same source material:
+
+### Source Material
+![Source Image](docs/images/source-material.png)
+*Brick wall texture used for all algorithm comparisons*
+
+### Algorithm Results
+
+| Algorithm | Normal Map | Characteristics |
+|-----------|------------|-----------------|
+| **Sobel** | ![Sobel Normal](docs/images/normal-sobel.png) | Standard edge detection, balanced results |
+| **Scharr** | ![Scharr Normal](docs/images/normal-scharr.png) | Enhanced rotation invariance, more accurate |
+| **Prewitt** | ![Prewitt Normal](docs/images/normal-prewitt.png) | Simple and fast, uniform edge detection |
+| **Roberts** | ![Roberts Normal](docs/images/normal-roberts.png) | Sharp edges, good for architectural materials |
+| **Laplacian** | ![Laplacian Normal](docs/images/normal-laplacian.png) | Fine details, emphasizes texture variations |
+
+*Choose the algorithm that best matches your material type for optimal results.*
 
 ## How To Use It
 
-It's pretty straightforward:
+It's simple and straightforward:
 
 1. **Open the app** in your browser
-2. **Take a photo** of any surface or upload an existing image  
-3. **Wait a few seconds** while it processes
-4. **Download your textures** - individually or as a zip file
+2. **Choose your edge detection algorithm** (Sobel, Scharr, Prewitt, Roberts, or Laplacian)
+3. **Take a photo** of any surface or upload an existing image, or load from URL
+4. **Wait a few seconds** while it processes using advanced JavaScript algorithms
+5. **Download your textures** - individually or as a complete zip package
 
-That's it! No accounts, no uploads to servers, no complicated settings and its free! 
+That's it! No accounts, no uploads to servers, no complicated settings - and it's completely free! 
 
 ## Why I Built This
 
-I have very talented friends who could benifit from such a tool. I set out without the objective of removing a pain point and help support their work without complicated workflows for creating PBR materials. Most solutions require expensive software, complex setups, or sending your images to cloud services. 
+I have very talented friends who could benefit from such a tool. I set out with the objective of removing a pain point and helping support their work by simplifying the complicated workflows for creating PBR materials. Most solutions require expensive software, complex setups, or sending your images to cloud services. 
 
 I wanted something simple: point camera at surface, get textures back. Something that's TotallyNormal.
 
@@ -69,10 +90,12 @@ For the curious minds:
 
 - **Pure JavaScript**: No external dependencies or cloud processing
 - **Canvas API**: All image processing happens in your browser
-- **Custom Algorithms**: Sobel operators for normal maps, edge detection for metallic classification
-- **Mobile Optimized**: Touch-friendly interface, works great on phones
+- **Multiple Edge Detection Algorithms**: Sobel, Scharr, Prewitt, Roberts Cross-Gradient, and Laplacian operators for normal map generation
+- **Advanced PBR Generation**: Custom algorithms for metallic classification, roughness calculation, and ambient occlusion
+- **Mobile Optimized**: Touch-friendly interface with pinch-to-zoom and drag controls for 3D preview
 - **Material History**: Keeps track of your generated materials locally
-- **3D Preview**: See how your materials look on a sphere or plane
+- **3D Preview**: Real-time PBR material preview on sphere or plane geometry
+- **URL Image Loading**: Support for loading images directly from web URLs
 
 ## Contributing
 

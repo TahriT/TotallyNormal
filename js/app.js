@@ -69,6 +69,20 @@ class LiveNormalApp {
         this.materialName = document.getElementById('materialName');
         this.materialDate = document.getElementById('materialDate');
         
+        // Tiling info elements
+        this.tilingInfo = document.getElementById('tilingInfo');
+        this.tilingDetails = document.getElementById('tilingDetails');
+        
+        // PWA and offline elements
+        this.networkStatus = document.getElementById('networkStatus');
+        this.networkStatusText = document.getElementById('networkStatusText');
+        this.pwaInstallBtn = document.getElementById('pwaInstallBtn');
+        this.pwaInstallModal = document.getElementById('pwaInstallModal');
+        this.installPwaBtn = document.getElementById('installPwaBtn');
+        this.cancelInstallBtn = document.getElementById('cancelInstallBtn');
+        this.offlineBanner = document.getElementById('offlineBanner');
+        this.dismissOfflineBanner = document.getElementById('dismissOfflineBanner');
+        
         // Texture preview elements
         this.textureElements = {
             albedo: document.getElementById('albedoPreview'),
@@ -91,6 +105,7 @@ class LiveNormalApp {
         this.resetCameraBtn = document.getElementById('resetCameraBtn');
         
         // Geometry toggle buttons
+        this.cubeBtn = document.getElementById('cubeBtn');
         this.sphereBtn = document.getElementById('sphereBtn');
         this.planeBtn = document.getElementById('planeBtn');
         
@@ -110,6 +125,15 @@ class LiveNormalApp {
         // Edge detection selector
         this.edgeDetectionSelect = document.getElementById('edgeDetectionSelect');
         
+        // Tiling button
+        this.applyTilingBtn = document.getElementById('applyTilingBtn');
+        
+        // Tiling zoom controls
+        this.tilingZoomControls = document.getElementById('tilingZoomControls');
+        this.tilingZoomSlider = document.getElementById('tilingZoom');
+        this.tilingZoomValue = document.getElementById('tilingZoomValue');
+        this.zoomPresetBtns = document.querySelectorAll('.zoom-preset-btn');
+        
         // Slider value displays
         this.roughnessValue = document.getElementById('roughnessValue');
         this.metallicValue = document.getElementById('metallicValue');
@@ -122,16 +146,255 @@ class LiveNormalApp {
         
         // Material history data (localStorage)
         this.materialHistoryData = this.loadMaterialHistory();
+        
+        // PWA-related state
+        this.deferredPrompt = null;
+        this.isOffline = !navigator.onLine;
+        
+        // Initialize PWA features
+        this.initializePWA();
+        
+        // Initialize tiling zoom controls
+        this.initializeTilingZoomControls();
+    }
+
+    // PWA Initialization
+    initializePWA() {
+        // Initialize network status monitoring
+        this.initializeNetworkStatus();
+        
+        // Initialize PWA install prompt
+        this.initializePWAInstall();
+        
+        // Set up offline/online event listeners
+        this.setupNetworkListeners();
+        
+        // Initialize service worker communication
+        this.initializeServiceWorkerCommunication();
+    }
+
+    initializeNetworkStatus() {
+        if (this.networkStatus) {
+            this.updateNetworkStatus();
+            this.networkStatus.style.display = 'flex';
+        }
+        
+        // Show offline banner if starting offline
+        if (this.isOffline && this.offlineBanner) {
+            setTimeout(() => {
+                this.showOfflineBanner();
+            }, 1000);
+        }
+    }
+
+    initializePWAInstall() {
+        // Listen for the beforeinstallprompt event
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            this.deferredPrompt = e;
+            this.showInstallButton();
+        });
+
+        // Handle PWA install button click
+        this.pwaInstallBtn?.addEventListener('click', () => {
+            this.showInstallModal();
+        });
+
+        // Handle install modal buttons
+        this.installPwaBtn?.addEventListener('click', () => {
+            this.installPWA();
+        });
+
+        this.cancelInstallBtn?.addEventListener('click', () => {
+            this.hideModal('pwaInstallModal');
+        });
+
+        // Check if already installed
+        window.addEventListener('appinstalled', () => {
+            console.log('PWA was installed');
+            this.hideInstallButton();
+        });
+
+        // Auto-show install prompt after some interaction
+        this.setupInstallPromptTrigger();
+    }
+
+    setupNetworkListeners() {
+        window.addEventListener('online', () => {
+            this.isOffline = false;
+            this.updateNetworkStatus();
+            this.hideOfflineBanner();
+            console.log('Back online');
+        });
+
+        window.addEventListener('offline', () => {
+            this.isOffline = true;
+            this.updateNetworkStatus();
+            this.showOfflineBanner();
+            console.log('Gone offline');
+        });
+        
+        // Dismiss offline banner
+        this.dismissOfflineBanner?.addEventListener('click', () => {
+            this.hideOfflineBanner();
+        });
+    }
+
+    initializeServiceWorkerCommunication() {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                const { type, data } = event.data;
+                
+                switch (type) {
+                    case 'SW_ACTIVATED':
+                        console.log('Service Worker activated:', data);
+                        break;
+                    case 'CACHE_STATUS':
+                        console.log('Cache status:', data);
+                        break;
+                }
+            });
+        }
+    }
+
+    updateNetworkStatus() {
+        if (!this.networkStatus || !this.networkStatusText) return;
+        
+        if (this.isOffline) {
+            this.networkStatus.className = 'network-status offline';
+            this.networkStatusText.textContent = 'Offline';
+            this.networkStatus.querySelector('i').className = 'fas fa-wifi-slash';
+        } else {
+            this.networkStatus.className = 'network-status online';
+            this.networkStatusText.textContent = 'Online';
+            this.networkStatus.querySelector('i').className = 'fas fa-wifi';
+        }
+    }
+
+    showInstallButton() {
+        if (this.pwaInstallBtn) {
+            this.pwaInstallBtn.style.display = 'flex';
+        }
+    }
+
+    hideInstallButton() {
+        if (this.pwaInstallBtn) {
+            this.pwaInstallBtn.style.display = 'none';
+        }
+    }
+
+    showInstallModal() {
+        this.showModal('pwaInstallModal');
+    }
+
+    async installPWA() {
+        if (!this.deferredPrompt) {
+            console.log('No install prompt available');
+            return;
+        }
+
+        try {
+            this.deferredPrompt.prompt();
+            const { outcome } = await this.deferredPrompt.userChoice;
+            console.log(`User response to install prompt: ${outcome}`);
+            
+            if (outcome === 'accepted') {
+                this.hideInstallButton();
+            }
+            
+            this.deferredPrompt = null;
+            this.hideModal('pwaInstallModal');
+        } catch (error) {
+            console.error('Failed to install PWA:', error);
+        }
+    }
+
+    setupInstallPromptTrigger() {
+        // Show install prompt after user creates their first material
+        let hasShownPrompt = localStorage.getItem('pwa-install-prompt-shown');
+        
+        if (!hasShownPrompt && this.deferredPrompt) {
+            // Trigger after first material creation
+            const originalDisplayMaterial = this.displayMaterial.bind(this);
+            this.displayMaterial = function(...args) {
+                originalDisplayMaterial(...args);
+                
+                if (!hasShownPrompt && this.deferredPrompt) {
+                    setTimeout(() => {
+                        this.showInstallModal();
+                        localStorage.setItem('pwa-install-prompt-shown', 'true');
+                    }, 2000);
+                    hasShownPrompt = true;
+                }
+            };
+        }
+    }
+
+    showOfflineBanner() {
+        if (this.offlineBanner) {
+            this.offlineBanner.classList.add('show');
+        }
+    }
+
+    hideOfflineBanner() {
+        if (this.offlineBanner) {
+            this.offlineBanner.classList.remove('show');
+        }
+    }
+
+    showUpdateAvailableNotification(registration) {
+        // Create a simple notification for app updates
+        const notification = document.createElement('div');
+        notification.className = 'update-notification';
+        notification.innerHTML = `
+            <div class="update-content">
+                <i class="fas fa-download"></i>
+                <span>App update available!</span>
+                <button onclick="window.location.reload()" class="update-btn">Update Now</button>
+                <button onclick="this.parentElement.parentElement.remove()" class="dismiss-update">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        // Add to page
+        document.body.appendChild(notification);
+        
+        // Auto-remove after 10 seconds
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, 10000);
     }
 
     async loadVersion() {
         try {
-            const response = await fetch('./version.json?t=' + Date.now()); // Cache bust
+            // Always fetch latest version with cache busting
+            const timestamp = Date.now();
+            const response = await fetch(`./version.json?v=${timestamp}&_cb=${timestamp}`); 
             this.version = await response.json();
             console.log(`🚀 TotallyNormal v${this.version.version} (${this.version.buildDate})`);
+            
+            // Check if service worker version matches
+            this.checkServiceWorkerVersion();
         } catch (error) {
             console.warn('Could not load version info:', error);
             this.version = { version: 'unknown', buildDate: 'unknown' };
+        }
+    }
+
+    async checkServiceWorkerVersion() {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            try {
+                // Send version info to service worker
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'VERSION_CHECK',
+                    version: this.version.version
+                });
+            } catch (error) {
+                console.log('Could not communicate with service worker:', error);
+            }
         }
     }
 
@@ -192,6 +455,23 @@ class LiveNormalApp {
                 warning.remove();
             }
         }, 10000);
+    }
+
+    // Initialize tiling zoom controls
+    initializeTilingZoomControls() {
+        // Tiling zoom controls are now always available
+        if (this.tilingZoomControls) {
+            this.tilingZoomControls.style.display = 'block';
+        }
+        
+        // Set initial zoom value
+        if (this.tilingZoomSlider && this.tilingZoomValue) {
+            const initialZoom = parseFloat(this.tilingZoomSlider.value);
+            this.tilingZoomValue.textContent = `${initialZoom}x`;
+            this.updateActiveZoomPreset(initialZoom);
+        }
+        
+        console.log('🔍 Tiling zoom controls initialized in material viewer');
     }
 
     setupEventListeners() {
@@ -269,6 +549,11 @@ class LiveNormalApp {
         });
         
         // Geometry toggle buttons
+        this.cubeBtn?.addEventListener('click', () => {
+            window.materialViewer3D?.switchGeometry('cube');
+            this.setActiveGeometryButton('cube');
+        });
+        
         this.sphereBtn?.addEventListener('click', () => {
             window.materialViewer3D?.switchGeometry('sphere');
             this.setActiveGeometryButton('sphere');
@@ -277,6 +562,27 @@ class LiveNormalApp {
         this.planeBtn?.addEventListener('click', () => {
             window.materialViewer3D?.switchGeometry('plane');
             this.setActiveGeometryButton('plane');
+        });
+        
+        // Apply tiling button
+        this.applyTilingBtn?.addEventListener('click', async () => {
+            console.log('🔄 Applying seamless tiling to current material...');
+            await this.applyTilingToCurrentMaterial();
+        });
+        
+        this.tilingZoomSlider?.addEventListener('input', (e) => {
+            const zoomValue = parseFloat(e.target.value);
+            this.updateTilingZoom(zoomValue);
+        });
+        
+        // Zoom preset buttons
+        this.zoomPresetBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const zoomValue = parseFloat(btn.dataset.zoom);
+                this.tilingZoomSlider.value = zoomValue;
+                this.updateTilingZoom(zoomValue);
+                this.updateActiveZoomPreset(zoomValue);
+            });
         });
         
         // Material history controls
@@ -592,10 +898,11 @@ class LiveNormalApp {
             this.showModal('loadingModal');
             this.updateProgress(0);
             
-            // Get selected resolution and edge detection algorithm
+            // Get selected resolution, edge detection algorithm, and tiling setting
             const selectedResolution = parseInt(this.resolutionSelect?.value || '512');
             const selectedEdgeDetection = this.edgeDetectionSelect?.value || 'sobel';
-            console.log(`🎯 Processing with resolution: ${selectedResolution}x${selectedResolution}, edge detection: ${selectedEdgeDetection}`);
+            const enableTiling = false; // Tiling is now controlled by button, not automatic
+            console.log(`🎯 Processing with resolution: ${selectedResolution}x${selectedResolution}, edge detection: ${selectedEdgeDetection}, tiling: ${enableTiling}`);
             
             // Create image element from source
             const img = new Image();
@@ -607,19 +914,29 @@ class LiveNormalApp {
                     this.updateProgress(20);
                     await this.delay(100); // Small delay for UI update
                     
-                    const textures = await window.textureGenerator.generatePBRTextures(img, selectedResolution, selectedEdgeDetection);
+                    console.log('🚀 Starting texture generation...');
+                    const result = await window.textureGenerator.generatePBRTextures(img, selectedResolution, selectedEdgeDetection, enableTiling);
+                    console.log('✅ Texture generation completed:', result);
                     
                     this.updateProgress(90);
                     await this.delay(100);
                     
-                    // Store current material
+                    // Store current material with new structure
                     this.currentMaterial = {
                         id: Date.now(),
                         name: `Material_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}`,
                         date: new Date().toISOString(),
                         resolution: selectedResolution,
-                        textures: textures
+                        textures: result.textures || result, // Handle both old and new structure
+                        tilingInfo: result.tilingInfo,
+                        settings: result.settings || {
+                            resolution: selectedResolution,
+                            edgeDetection: selectedEdgeDetection,
+                            tilingEnabled: enableTiling
+                        }
                     };
+                    
+                    console.log('📦 Material created:', this.currentMaterial);
                     
                     // Add to history immediately
                     this.addToMaterialHistory(this.currentMaterial);
@@ -628,6 +945,7 @@ class LiveNormalApp {
                     await this.delay(200);
                     
                     // Show results (don't add to history again)
+                    console.log('🎨 Displaying material...');
                     this.displayMaterial(null, false);
                     this.hideModal('loadingModal');
                     this.showSection('materials');
@@ -665,7 +983,17 @@ class LiveNormalApp {
     displayMaterial(material = null, addToHistory = true) {
         // Use provided material or current material
         const materialToDisplay = material || this.currentMaterial;
-        if (!materialToDisplay) return;
+        console.log('🎨 displayMaterial called with:', { material, addToHistory, materialToDisplay });
+        
+        // Debug: Check material viewer status
+        if (window.debugMaterialViewer) {
+            window.debugMaterialViewer();
+        }
+        
+        if (!materialToDisplay) {
+            console.log('❌ No material to display');
+            return;
+        }
         
         // If a new material is provided, set it as current and optionally add to history
         if (material && material !== this.currentMaterial) {
@@ -675,6 +1003,7 @@ class LiveNormalApp {
             }
         }
         
+        console.log('📝 Updating material info display...');
         // Update material info
         this.materialName.textContent = materialToDisplay.name;
         const dateSpan = this.materialDate.querySelector('span');
@@ -683,13 +1012,25 @@ class LiveNormalApp {
             dateSpan.textContent = date.toLocaleString();
         }
         
+        console.log('🖼️ Updating texture previews...', materialToDisplay.textures);
         // Update texture previews
         Object.entries(materialToDisplay.textures).forEach(([type, dataUrl]) => {
+            console.log(`Setting ${type} texture:`, dataUrl ? `${dataUrl.substring(0, 50)}...` : 'undefined');
             if (this.textureElements[type]) {
-                this.textureElements[type].src = dataUrl;
-                this.textureElements[type].alt = `${type} texture`;
+                if (dataUrl && dataUrl.startsWith('data:image/')) {
+                    this.textureElements[type].src = dataUrl;
+                    this.textureElements[type].alt = `${type} texture`;
+                    console.log(`✅ ${type} texture set successfully`);
+                } else {
+                    console.error(`❌ Invalid data URL for ${type}:`, dataUrl);
+                }
+            } else {
+                console.log(`❌ Texture element not found for ${type}`);
             }
         });
+        
+        // Update tiling information display
+        this.updateTilingInfoDisplay(materialToDisplay);
         
         // Show material preview, hide no-material message
         this.materialPreview.style.display = 'block';
@@ -703,6 +1044,12 @@ class LiveNormalApp {
         // Load textures into 3D viewer
         if (window.materialViewer3D && window.materialViewer3D.isInitialized) {
             window.materialViewer3D.loadMaterial(materialToDisplay.textures);
+            
+            // Apply current zoom setting for tiling preview
+            if (this.tilingZoomSlider) {
+                const currentZoom = parseFloat(this.tilingZoomSlider.value);
+                window.materialViewer3D.updateTilingZoom(currentZoom);
+            }
         }
         
         // Add fade-in animation
@@ -979,14 +1326,80 @@ class LiveNormalApp {
     // Geometry Toggle Methods
     setActiveGeometryButton(geometryType) {
         // Remove active class from all geometry buttons
+        if (this.cubeBtn) this.cubeBtn.classList.remove('active');
         if (this.sphereBtn) this.sphereBtn.classList.remove('active');
         if (this.planeBtn) this.planeBtn.classList.remove('active');
         
         // Add active class to selected button
-        if (geometryType === 'sphere' && this.sphereBtn) {
+        if (geometryType === 'cube' && this.cubeBtn) {
+            this.cubeBtn.classList.add('active');
+        } else if (geometryType === 'sphere' && this.sphereBtn) {
             this.sphereBtn.classList.add('active');
         } else if (geometryType === 'plane' && this.planeBtn) {
             this.planeBtn.classList.add('active');
+        }
+    }
+
+    // Rotation Control Methods
+    // Tiling Zoom Methods
+    updateTilingZoom(zoomValue) {
+        // Update the display value
+        if (this.tilingZoomValue) {
+            this.tilingZoomValue.textContent = `${zoomValue}x`;
+        }
+        
+        // Update the 3D material viewer with new zoom
+        if (window.materialViewer3D) {
+            window.materialViewer3D.updateTilingZoom(zoomValue);
+        }
+        
+        // Update active preset button
+        this.updateActiveZoomPreset(zoomValue);
+        
+        console.log(`🔍 Tiling zoom updated to ${zoomValue}x`);
+    }
+    
+    updateActiveZoomPreset(zoomValue) {
+        // Remove active class from all preset buttons
+        this.zoomPresetBtns.forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Add active class to matching preset button
+        this.zoomPresetBtns.forEach(btn => {
+            if (parseFloat(btn.dataset.zoom) === zoomValue) {
+                btn.classList.add('active');
+            }
+        });
+    }
+
+    // Tiling Information Display
+    updateTilingInfoDisplay(material) {
+        if (!this.tilingInfo || !this.tilingDetails) return;
+        
+        if (material.tilingInfo && material.settings?.tilingEnabled) {
+            this.tilingInfo.style.display = 'block';
+            this.tilingDetails.innerHTML = '';
+            
+            // Create summary of tiling modifications
+            const tilingTypes = Object.keys(material.tilingInfo);
+            if (tilingTypes.length > 0) {
+                const sampleInfo = material.tilingInfo[tilingTypes[0]];
+                
+                // Create detail elements
+                const detailsHTML = [
+                    `<div class="tiling-detail"><strong>Method:</strong> ${sampleInfo.method || 'offset+blend'}</div>`,
+                    `<div class="tiling-detail"><strong>Edge Blending:</strong> ${sampleInfo.edgeBlending ? 'Applied' : 'None'}</div>`,
+                    `<div class="tiling-detail"><strong>Offset Filter:</strong> ${sampleInfo.offsetFilter ? 'Applied' : 'None'}</div>`,
+                    `<div class="tiling-detail"><strong>Blend Width:</strong> ${sampleInfo.blendWidth || 0}px</div>`,
+                    `<div class="tiling-detail"><strong>Textures:</strong> ${tilingTypes.length} processed</div>`,
+                    `<div class="tiling-detail"><strong>Status:</strong> <span style="color: var(--accent-primary);">Seamless</span></div>`
+                ].join('');
+                
+                this.tilingDetails.innerHTML = detailsHTML;
+            }
+        } else {
+            this.tilingInfo.style.display = 'none';
         }
     }
 
@@ -1107,6 +1520,57 @@ class LiveNormalApp {
         }
     }
 
+    // Apply tiling to current material
+    async applyTilingToCurrentMaterial() {
+        if (!this.currentMaterial) {
+            console.warn('⚠️ No current material to apply tiling to');
+            alert('Please generate a material first before applying tiling.');
+            return;
+        }
+
+        try {
+            console.log('🔄 Starting tiling application to current material...');
+            
+            // Show loading state
+            this.applyTilingBtn.disabled = true;
+            this.applyTilingBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying Tiling...';
+            
+            // Apply tiling to each texture
+            const tiledTextures = {};
+            const textureTypes = ['albedo', 'normal', 'height', 'metallic', 'occlusion', 'roughness'];
+            
+            for (const textureType of textureTypes) {
+                const originalDataUrl = this.currentMaterial.textures[textureType];
+                if (originalDataUrl) {
+                    console.log(`🔄 Applying tiling to ${textureType} texture...`);
+                    const tiledDataUrl = await window.textureGenerator.applyTilingToTexture(originalDataUrl, 512);
+                    tiledTextures[textureType] = tiledDataUrl;
+                }
+            }
+            
+            // Update current material with tiled textures
+            this.currentMaterial.textures = tiledTextures;
+            this.currentMaterial.tilingApplied = true;
+            
+            // Update the display
+            this.displayMaterial(this.currentMaterial);
+            
+            // Update version and save to history
+            this.currentMaterial.name += '_tiled';
+            this.addToMaterialHistory(this.currentMaterial);
+            
+            console.log('✅ Tiling applied successfully to all textures');
+            
+        } catch (error) {
+            console.error('❌ Error applying tiling:', error);
+            alert('Error applying tiling to material. Please try again.');
+        } finally {
+            // Reset button state
+            this.applyTilingBtn.disabled = false;
+            this.applyTilingBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Apply Seamless Tiling';
+        }
+    }
+
     // Cleanup method
     destroy() {
         this.stopCamera();
@@ -1131,10 +1595,49 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.serviceWorker.register('./sw.js')
             .then(registration => {
                 console.log('ServiceWorker registration successful');
+                
+                // Send version check to service worker
+                if (registration.active) {
+                    registration.active.postMessage({
+                        type: 'VERSION_CHECK',
+                        version: window.APP_VERSION
+                    });
+                }
+                
+                // Check for updates
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            console.log('New service worker available - app will update on next reload');
+                            // Show update notification
+                            window.liveNormalApp?.showUpdateAvailableNotification?.(registration);
+                        }
+                    });
+                });
+                
+                // Check for updates periodically
+                setInterval(() => {
+                    registration.update();
+                }, 60000); // Check every minute
+                
+                // Enhanced PWA features
+                registration.addEventListener('controlling', () => {
+                    console.log('Service worker is now controlling the page');
+                });
+                
             })
             .catch(error => {
-                console.log('ServiceWorker registration failed');
+                console.log('ServiceWorker registration failed:', error);
             });
+        
+        // Listen for service worker messages
+        navigator.serviceWorker.addEventListener('message', event => {
+            const { type, message } = event.data;
+            if (type === 'UPDATE_AVAILABLE') {
+                console.log('Service worker update available:', message);
+            }
+        });
     }
 });
 
