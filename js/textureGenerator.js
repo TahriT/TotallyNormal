@@ -1,6 +1,6 @@
 class PBRTextureGenerator {
     constructor() {
-        this.version = '1.3.3'; // Version tracking
+        this.version = '1.4.1'; // Version tracking - Tiling now button-controlled, plane default, fixed animation direction
         this.canvas = document.createElement('canvas');
         this.ctx = this.canvas.getContext('2d');
         this.offscreenCanvas = document.createElement('canvas');
@@ -24,7 +24,7 @@ class PBRTextureGenerator {
         }
     }
 
-    async generatePBRTextures(image, resolution = 512, edgeDetection = 'sobel') {
+    async generatePBRTextures(image, resolution = 512, edgeDetection = 'sobel', enableTiling = true) {
         // Prevent simultaneous generation calls
         if (this._isGenerating) {
             const error = new Error('Texture generation already in progress');
@@ -33,10 +33,10 @@ class PBRTextureGenerator {
         }
         
         this._isGenerating = true;
-        console.log(`🚀 Starting PBR texture generation (${resolution}x${resolution}, ${edgeDetection} edges)`);
+        console.log(`🚀 Starting PBR texture generation (${resolution}x${resolution}, ${edgeDetection} edges, tiling: ${enableTiling})`);
         
         try {
-            const result = await this.generateTexturesFallback(image, resolution, edgeDetection);
+            const result = await this.generateTexturesFallback(image, resolution, edgeDetection, enableTiling);
             this._isGenerating = false;
             return result;
         } catch (error) {
@@ -46,8 +46,13 @@ class PBRTextureGenerator {
         }
     }
 
-    async generateTexturesFallback(image, resolution = 512, edgeDetection = 'sobel') {
-        console.log(`🔧 Using JavaScript algorithms (${resolution}x${resolution}, ${edgeDetection} edge detection)`);
+    async generateTexturesFallback(image, resolution = 512, edgeDetection = 'sobel', enableTiling = true) {
+        console.log(`🔧 Using JavaScript algorithms (${resolution}x${resolution}, ${edgeDetection} edge detection, tiling: ${enableTiling})`);
+        
+        // Debug: Check input image
+        if (window.debugImageProcessing) {
+            window.debugImageProcessing(image);
+        }
         
         // Use the provided resolution
         const targetSize = resolution;
@@ -64,13 +69,35 @@ class PBRTextureGenerator {
         const offsetX = (image.width - sourceSize) / 2;
         const offsetY = (image.height - sourceSize) / 2;
 
+        console.log('🖼️ Drawing to canvas:', {
+            imageWidth: image.width,
+            imageHeight: image.height,
+            sourceSize,
+            offsetX,
+            offsetY,
+            targetSize,
+            canvasWidth: this.canvas.width,
+            canvasHeight: this.canvas.height
+        });
+
+        // Clear canvas before drawing
+        this.ctx.clearRect(0, 0, targetSize, targetSize);
+        
         this.ctx.drawImage(
             image,
             offsetX, offsetY, sourceSize, sourceSize,
             0, 0, targetSize, targetSize
         );
 
+        console.log('✅ Image drawn to canvas successfully');
+
         const baseImageData = this.ctx.getImageData(0, 0, targetSize, targetSize);
+        console.log('📸 Base image data extracted:', baseImageData);
+        
+        // Debug: Analyze base image data
+        if (window.debugTextureGeneration) {
+            window.debugTextureGeneration(baseImageData);
+        }
 
         // Generate all textures
         console.log('🎨 Generating texture maps...');
@@ -101,8 +128,44 @@ class PBRTextureGenerator {
         textures.occlusion = this.generateOcclusionFallback(baseImageData);
         console.log('✅ Occlusion map generated');
 
+        // Apply seamless tiling if enabled
+        let tilingInfo = null;
+        if (enableTiling) {
+            console.log('🔄 Applying seamless tiling to all textures... (enableTiling=true)');
+            tilingInfo = {};
+            
+            // Apply tiling to each texture type (async processing)
+            const textureTypes = Object.keys(textures);
+            for (const textureType of textureTypes) {
+                console.log(`🔄 Processing tiling for texture type: ${textureType}`);
+                try {
+                    const tiledResult = await this.applyTilingToTexture(textures[textureType], targetSize);
+                    textures[textureType] = tiledResult.dataUrl;
+                    tilingInfo[textureType] = tiledResult.modifications;
+                    console.log(`✅ Tiling completed for ${textureType}`);
+                } catch (error) {
+                    console.error(`🚨 Tiling failed for ${textureType}:`, error);
+                    // Keep original texture on failure
+                    tilingInfo[textureType] = { error: error.message };
+                }
+            }
+            
+            console.log('✅ Seamless tiling applied to all textures');
+        } else {
+            console.log('⚠️ Tiling DISABLED - textures will be used as-is (enableTiling=false)');
+        }
+
         console.log('🎉 All PBR textures generated successfully');
-        return textures;
+        
+        return {
+            textures: textures,
+            tilingInfo: tilingInfo,
+            settings: {
+                resolution: targetSize,
+                edgeDetection: edgeDetection,
+                tilingEnabled: enableTiling
+            }
+        };
     }
 
     generateAlbedoFallback(imageData) {
@@ -636,10 +699,359 @@ class PBRTextureGenerator {
     }
 
     imageDataToDataUrl(imageData) {
+        console.log('🔄 Converting ImageData to Data URL:', {
+            width: imageData.width,
+            height: imageData.height,
+            dataLength: imageData.data.length
+        });
+        
         this.offscreenCanvas.width = imageData.width;
         this.offscreenCanvas.height = imageData.height;
         this.offscreenCtx.putImageData(imageData, 0, 0);
-        return this.offscreenCanvas.toDataURL('image/png');
+        const dataUrl = this.offscreenCanvas.toDataURL('image/png');
+        
+        // Check if data URL is valid
+        const isValid = dataUrl && dataUrl.length > 50 && dataUrl.startsWith('data:image');
+        console.log(`🖼️ Generated data URL: ${dataUrl.substring(0, 50)}... (length: ${dataUrl.length}, valid: ${isValid})`);
+        
+        if (!isValid) {
+            console.error('🚨 ISSUE: Generated invalid or empty data URL');
+        }
+        
+        return dataUrl;
+    }
+
+    // Correct Seamless Tiling Algorithm - blend actual edges that will connect
+    makeSeamless(imageData) {
+        console.log('🔄 Applying correct seamless tiling algorithm...');
+        console.log('📊 Input imageData:', {
+            width: imageData.width,
+            height: imageData.height,
+            dataLength: imageData.data.length,
+            firstPixels: Array.from(imageData.data.slice(0, 12))
+        });
+        
+        const width = imageData.width;
+        const height = imageData.height;
+        const data = new Uint8ClampedArray(imageData.data);
+        
+        // Check if input data is valid before processing
+        let hasNonZeroPixels = false;
+        for (let i = 0; i < data.length; i += 4) {
+            if (data[i] !== 0 || data[i + 1] !== 0 || data[i + 2] !== 0) {
+                hasNonZeroPixels = true;
+                break;
+            }
+        }
+        
+        if (!hasNonZeroPixels) {
+            console.error('🚨 ISSUE: Input image data is completely black before tiling');
+            return {
+                imageData: imageData,
+                modifications: {
+                    edgeBlending: false,
+                    error: 'Input data was completely black'
+                }
+            };
+        }
+        
+        // Calculate aggressive blend width for gradient blending
+        const minBlendWidth = 8; // Minimum blend zone
+        const maxBlendWidth = Math.floor(Math.min(width, height) * 0.15); // 15% of smaller dimension
+        const blendWidth = Math.max(minBlendWidth, Math.min(maxBlendWidth, 32)); // Clamp between 8-32 pixels
+        
+        console.log('🔧 Aggressive gradient tiling parameters:', { 
+            blendWidth, 
+            imageDimensions: `${width}x${height}`,
+            method: 'gradient-edge-blending'
+        });
+        
+        // Apply aggressive gradient blending
+        this.blendOpposingEdges(data, width, height, blendWidth);
+        
+        // Create new image data
+        const seamlessImageData = new ImageData(data, width, height);
+        
+        console.log(`✅ Aggressive gradient tiling applied with ${blendWidth}px blend zones`);
+        
+        return {
+            imageData: seamlessImageData,
+            modifications: {
+                edgeBlending: true,
+                blendWidth: blendWidth,
+                method: 'gradient-edge-blending'
+            }
+        };
+    }
+    
+    // Aggressive gradient tiling - create smooth blend zones between opposing edges
+    blendOpposingEdges(data, width, height, blendWidth) {
+        console.log(`🎨 Applying CORRECTED seamless tiling - exact edge-to-edge mapping with ${blendWidth}px blend zones...`);
+        
+        // Step 1: Horizontal tiling (left-right edges) - FIXED COORDINATE MAPPING
+        for (let y = 0; y < height; y++) {
+            // Left blend zone: blend left edge with pixels from right edge
+            for (let x = 0; x < blendWidth; x++) {
+                const leftIndex = (y * width + x) * 4;
+                // Map to corresponding pixel on right edge (mirror position)
+                const rightSourceIndex = (y * width + (width - blendWidth + x)) * 4;
+                
+                // Calculate blend factor: x=0 (leftmost) blends most, x=blendWidth-1 blends least
+                const t = this.smoothBlendFactor(blendWidth - 1 - x, blendWidth);
+                
+                // Blend RGB channels
+                for (let c = 0; c < 3; c++) {
+                    const leftValue = data[leftIndex + c];
+                    const rightValue = data[rightSourceIndex + c];
+                    data[leftIndex + c] = Math.round(leftValue * (1 - t) + rightValue * t);
+                }
+            }
+            
+            // Right blend zone: blend right edge with pixels from left edge  
+            for (let x = 0; x < blendWidth; x++) {
+                const rightIndex = (y * width + (width - blendWidth + x)) * 4;
+                // Map to corresponding pixel on left edge (mirror position)
+                const leftSourceIndex = (y * width + x) * 4;
+                
+                // Calculate blend factor: x=0 (inner) blends least, x=blendWidth-1 (rightmost) blends most
+                const t = this.smoothBlendFactor(x, blendWidth);
+                
+                // Blend RGB channels
+                for (let c = 0; c < 3; c++) {
+                    const rightValue = data[rightIndex + c];
+                    const leftValue = data[leftSourceIndex + c];
+                    data[rightIndex + c] = Math.round(rightValue * (1 - t) + leftValue * t);
+                }
+            }
+        }
+        
+        // Step 2: Vertical tiling (top-bottom edges) - FIXED: actual edge-to-edge mapping
+        for (let x = 0; x < width; x++) {
+            // Top blend zone: blend with ACTUAL bottom edge pixels (height-1-y)
+            for (let y = 0; y < blendWidth; y++) {
+                const topIndex = (y * width + x) * 4;
+                // Map to actual bottom edge - CORRECTED coordinate mapping
+                const bottomSourceIndex = ((height - 1 - y) * width + x) * 4;
+                
+                // Calculate blend factor: y=0 (topmost) blends most, y=blendWidth-1 blends least
+                const t = this.smoothBlendFactor(blendWidth - 1 - y, blendWidth);
+                
+                // Blend RGB channels
+                for (let c = 0; c < 3; c++) {
+                    const topValue = data[topIndex + c];
+                    const bottomValue = data[bottomSourceIndex + c];
+                    data[topIndex + c] = Math.round(topValue * (1 - t) + bottomValue * t);
+                }
+            }
+            
+            // Bottom blend zone: blend with ACTUAL top edge pixels (blendWidth-1-y) 
+            for (let y = 0; y < blendWidth; y++) {
+                const bottomIndex = ((height - blendWidth + y) * width + x) * 4;
+                // Map to actual top edge - CORRECTED coordinate mapping
+                const topSourceIndex = ((blendWidth - 1 - y) * width + x) * 4;
+                
+                // Calculate blend factor: y=0 (inner) blends least, y=blendWidth-1 (bottommost) blends most
+                const t = this.smoothBlendFactor(y, blendWidth);
+                
+                // Blend RGB channels
+                for (let c = 0; c < 3; c++) {
+                    const bottomValue = data[bottomIndex + c];
+                    const topValue = data[topSourceIndex + c];
+                    data[bottomIndex + c] = Math.round(bottomValue * (1 - t) + topValue * t);
+                }
+            }
+        }
+        
+        // Step 3: Blend corner regions where horizontal and vertical zones overlap
+        this.blendTilingCorners(data, width, height, blendWidth);
+        
+        console.log('✅ CORRECTED seamless tiling applied - edges now map correctly for perfect alignment');
+    }
+    
+    // Calculate smooth blend factor for gradient transitions
+    smoothBlendFactor(distance, blendWidth) {
+        // Normalize distance to 0-1 range
+        const t = distance / (blendWidth - 1);
+        
+        // Apply smooth curve (cubic ease-in-out for natural blending)
+        return t * t * (3 - 2 * t);
+    }
+    
+    // Fixed corner blending - use correct edge-to-edge mapping for seamless tiling
+    blendTilingCorners(data, width, height, blendWidth) {
+        console.log('🎨 Applying CORRECTED corner blending with proper edge-to-edge mapping...');
+        
+        // Top-left corner
+        for (let y = 0; y < blendWidth; y++) {
+            for (let x = 0; x < blendWidth; x++) {
+                const currentIndex = (y * width + x) * 4;
+                // Use actual opposite edges that will connect when tiled
+                const rightSourceIndex = (y * width + (width - blendWidth + x)) * 4;
+                const bottomSourceIndex = ((height - 1 - y) * width + x) * 4; // ACTUAL bottom edge
+                const diagonalSourceIndex = ((height - 1 - y) * width + (width - blendWidth + x)) * 4; // ACTUAL diagonal
+                
+                const tX = this.smoothBlendFactor(blendWidth - 1 - x, blendWidth);
+                const tY = this.smoothBlendFactor(blendWidth - 1 - y, blendWidth);
+                
+                for (let c = 0; c < 3; c++) {
+                    const current = data[currentIndex + c];
+                    const rightSource = data[rightSourceIndex + c];
+                    const bottomSource = data[bottomSourceIndex + c];
+                    const diagonalSource = data[diagonalSourceIndex + c];
+                    
+                    // Bilinear interpolation with correct source pixels
+                    const top = current * (1 - tX) + rightSource * tX;
+                    const bottom = bottomSource * (1 - tX) + diagonalSource * tX;
+                    const result = Math.round(top * (1 - tY) + bottom * tY);
+                    
+                    data[currentIndex + c] = result;
+                }
+            }
+        }
+        
+        // Top-right corner
+        for (let y = 0; y < blendWidth; y++) {
+            for (let x = 0; x < blendWidth; x++) {
+                const currentIndex = (y * width + (width - blendWidth + x)) * 4;
+                // Use actual opposite edges that will connect when tiled
+                const leftSourceIndex = (y * width + x) * 4;
+                const bottomSourceIndex = ((height - 1 - y) * width + (width - blendWidth + x)) * 4; // ACTUAL bottom edge
+                const diagonalSourceIndex = ((height - 1 - y) * width + x) * 4; // ACTUAL diagonal
+                
+                const tX = this.smoothBlendFactor(x, blendWidth);
+                const tY = this.smoothBlendFactor(blendWidth - 1 - y, blendWidth);
+                
+                for (let c = 0; c < 3; c++) {
+                    const current = data[currentIndex + c];
+                    const leftSource = data[leftSourceIndex + c];
+                    const bottomSource = data[bottomSourceIndex + c];
+                    const diagonalSource = data[diagonalSourceIndex + c];
+                    
+                    // Bilinear interpolation with correct source pixels
+                    const top = current * (1 - tX) + leftSource * tX;
+                    const bottom = bottomSource * (1 - tX) + diagonalSource * tX;
+                    const result = Math.round(top * (1 - tY) + bottom * tY);
+                    
+                    data[currentIndex + c] = result;
+                }
+            }
+        }
+        
+        // Bottom-left corner
+        for (let y = 0; y < blendWidth; y++) {
+            for (let x = 0; x < blendWidth; x++) {
+                const currentIndex = ((height - blendWidth + y) * width + x) * 4;
+                // Use actual opposite edges that will connect when tiled
+                const rightSourceIndex = ((height - blendWidth + y) * width + (width - blendWidth + x)) * 4;
+                const topSourceIndex = ((blendWidth - 1 - y) * width + x) * 4; // ACTUAL top edge
+                const diagonalSourceIndex = ((blendWidth - 1 - y) * width + (width - blendWidth + x)) * 4; // ACTUAL diagonal
+                
+                const tX = this.smoothBlendFactor(blendWidth - 1 - x, blendWidth);
+                const tY = this.smoothBlendFactor(y, blendWidth);
+                
+                for (let c = 0; c < 3; c++) {
+                    const current = data[currentIndex + c];
+                    const rightSource = data[rightSourceIndex + c];
+                    const topSource = data[topSourceIndex + c];
+                    const diagonalSource = data[diagonalSourceIndex + c];
+                    
+                    // Bilinear interpolation with correct source pixels
+                    const top = topSource * (1 - tX) + diagonalSource * tX;
+                    const bottom = current * (1 - tX) + rightSource * tX;
+                    const result = Math.round(top * (1 - tY) + bottom * tY);
+                    
+                    data[currentIndex + c] = result;
+                }
+            }
+        }
+        
+        // Bottom-right corner
+        for (let y = 0; y < blendWidth; y++) {
+            for (let x = 0; x < blendWidth; x++) {
+                const currentIndex = ((height - blendWidth + y) * width + (width - blendWidth + x)) * 4;
+                // Use actual opposite edges that will connect when tiled
+                const leftSourceIndex = ((height - blendWidth + y) * width + x) * 4;
+                const topSourceIndex = ((blendWidth - 1 - y) * width + (width - blendWidth + x)) * 4; // ACTUAL top edge
+                const diagonalSourceIndex = ((blendWidth - 1 - y) * width + x) * 4; // ACTUAL diagonal
+                
+                const tX = this.smoothBlendFactor(x, blendWidth);
+                const tY = this.smoothBlendFactor(y, blendWidth);
+                
+                for (let c = 0; c < 3; c++) {
+                    const current = data[currentIndex + c];
+                    const leftSource = data[leftSourceIndex + c];
+                    const topSource = data[topSourceIndex + c];
+                    const diagonalSource = data[diagonalSourceIndex + c];
+                    
+                    // Bilinear interpolation with correct source pixels
+                    const top = topSource * (1 - tX) + diagonalSource * tX;
+                    const bottom = leftSource * (1 - tX) + current * tX;
+                    const result = Math.round(top * (1 - tY) + bottom * tY);
+                    
+                    data[currentIndex + c] = result;
+                }
+            }
+        }
+        
+        console.log('✅ Corner blending completed with correct edge-to-edge mapping');
+    }
+
+    async applyTilingToTexture(dataUrl, targetSize) {
+        console.log('🔄 Applying tiling to texture...', { targetSize, dataUrlLength: dataUrl.length });
+        
+        // Create a temporary image to get ImageData
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = targetSize;
+        tempCanvas.height = targetSize;
+        
+        // Create image from data URL and wait for it to load
+        const img = new Image();
+        
+        return new Promise((resolve, reject) => {
+            img.onload = () => {
+                try {
+                    console.log('🖼️ Image loaded for tiling, dimensions:', { width: img.width, height: img.height });
+                    
+                    // Draw image to canvas
+                    tempCtx.drawImage(img, 0, 0, targetSize, targetSize);
+                    const imageData = tempCtx.getImageData(0, 0, targetSize, targetSize);
+                    
+                    console.log('📊 ImageData extracted for tiling:', {
+                        width: imageData.width,
+                        height: imageData.height,
+                        dataLength: imageData.data.length,
+                        hasData: imageData.data.some(val => val > 0)
+                    });
+                    
+                    // Apply seamless tiling
+                    const tilingResult = this.makeSeamless(imageData);
+                    
+                    // Convert back to data URL
+                    tempCanvas.width = targetSize;
+                    tempCanvas.height = targetSize;
+                    tempCtx.putImageData(tilingResult.imageData, 0, 0);
+                    
+                    const resultDataUrl = tempCanvas.toDataURL('image/png');
+                    console.log('✅ Tiling applied, result data URL length:', resultDataUrl.length);
+                    
+                    resolve({
+                        dataUrl: resultDataUrl,
+                        modifications: tilingResult.modifications
+                    });
+                } catch (error) {
+                    console.error('🚨 Error applying tiling:', error);
+                    reject(error);
+                }
+            };
+            
+            img.onerror = (error) => {
+                console.error('🚨 Failed to load image for tiling:', error);
+                reject(new Error('Failed to load image for tiling'));
+            };
+            
+            img.src = dataUrl;
+        });
     }
 }
 

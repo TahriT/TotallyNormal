@@ -28,18 +28,33 @@ echo   ]
 echo }
 ) > version.json
 
-REM Note: Manual updates needed for sw.js and textureGenerator.js
-echo ⚠️  Manual updates required:
-echo    1. sw.js: Change APP_VERSION to '%VERSION%'
-echo    2. js/textureGenerator.js: Change this.version to '%VERSION%'
+echo ✅ Updated version.json
+
+REM Update service worker version
+powershell -Command "(Get-Content sw.js) -replace 'const APP_VERSION = ''[^'']*'';', 'const APP_VERSION = ''%VERSION%'';' | Set-Content sw.js"
+echo ✅ Updated sw.js APP_VERSION
+
+REM Update textureGenerator.js version
+powershell -Command "(Get-Content js\\textureGenerator.js) -replace 'this\.version = ''[^'']*'';', 'this.version = ''%VERSION%'';' | Set-Content js\\textureGenerator.js"
+echo ✅ Updated textureGenerator.js version
+
+REM Update HTML version parameters and add googleDrive.js version
+powershell -Command "(Get-Content index.html) -replace '\?v=[0-9.]+', '?v=%VERSION%' | Set-Content index.html"
+powershell -Command "(Get-Content index.html) -replace 'window\.APP_VERSION = ''[^'']*'';', 'window.APP_VERSION = ''%VERSION%'';' | Set-Content index.html"
+echo ✅ Updated index.html version parameters
 
 echo.
-echo ✅ Updated version.json to %VERSION%
+echo ✅ All files updated to version %VERSION%
 echo 📝 Build date: %BUILD_DATE%
 echo.
 echo 🚀 Next steps:
-echo    1. Update APP_VERSION in sw.js
-echo    2. Update this.version in textureGenerator.js
-echo    3. Commit: git add . ^&^& git commit -m "Release v%VERSION%: %DESCRIPTION%"
-echo    4. Tag: git tag v%VERSION%
-echo    5. Push: git push origin main --tags
+echo    1. Test the application
+echo    2. Commit: git add . ^&^& git commit -m "Release v%VERSION%: %DESCRIPTION%"
+echo    3. Tag: git tag v%VERSION%
+echo    4. Push: git push origin main --tags
+echo.
+echo 💡 The new caching strategy will:
+echo    - Always fetch latest app files (JS/HTML/CSS)
+echo    - Keep external resources cached for performance  
+echo    - Preserve user materials in separate cache
+echo    - No more manual cache clearing needed!
