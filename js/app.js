@@ -567,6 +567,12 @@ class LiveNormalApp {
         // Apply tiling button
         this.applyTilingBtn?.addEventListener('click', async () => {
             console.log('🔄 Applying seamless tiling to current material...');
+            
+            // Snap to plane view instantly for tiling preview
+            if (window.materialViewer3D && window.materialViewer3D.snapToPlaneView) {
+                window.materialViewer3D.snapToPlaneView();
+            }
+            
             await this.applyTilingToCurrentMaterial();
         });
         
@@ -646,11 +652,28 @@ class LiveNormalApp {
 
     async startCamera() {
         try {
+            // Check if MediaDevices is supported
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error('Camera API not supported in this browser');
+            }
+
             this.updateStatus('Requesting camera access...');
             
             // Stop existing stream if any
             if (this.stream) {
                 this.stopCamera();
+            }
+            
+            // Check camera permissions first
+            try {
+                const permissionStatus = await navigator.permissions.query({ name: 'camera' });
+                console.log('Camera permission status:', permissionStatus.state);
+                
+                if (permissionStatus.state === 'denied') {
+                    throw new Error('Camera permission was denied. Please enable camera access in your browser settings.');
+                }
+            } catch (permError) {
+                console.log('Permission query not supported, proceeding with camera request');
             }
             
             const constraints = {
@@ -681,12 +704,19 @@ class LiveNormalApp {
             console.error('Camera error:', error);
             let errorMsg = 'Could not access camera. ';
             
-            if (error.name === 'NotAllowedError') {
-                errorMsg += 'Please allow camera access and try again.';
+            if (error.name === 'NotAllowedError' || error.message.includes('denied')) {
+                errorMsg += 'Camera permission was denied. Please:\n';
+                errorMsg += '1. Click the camera icon in your browser address bar\n';
+                errorMsg += '2. Select "Always allow" for camera access\n';
+                errorMsg += '3. Refresh the page and try again';
             } else if (error.name === 'NotFoundError') {
-                errorMsg += 'No camera found on this device.';
+                errorMsg += 'No camera was found on this device.';
+            } else if (error.name === 'NotReadableError') {
+                errorMsg += 'Camera is being used by another application.';
+            } else if (error.message.includes('not supported')) {
+                errorMsg += 'Your browser does not support camera access.';
             } else {
-                errorMsg += 'Please check your camera permissions.';
+                errorMsg += `Error: ${error.message}`;
             }
             
             this.showError(errorMsg);
@@ -1543,8 +1573,8 @@ class LiveNormalApp {
                 const originalDataUrl = this.currentMaterial.textures[textureType];
                 if (originalDataUrl) {
                     console.log(`🔄 Applying tiling to ${textureType} texture...`);
-                    const tiledDataUrl = await window.textureGenerator.applyTilingToTexture(originalDataUrl, 512);
-                    tiledTextures[textureType] = tiledDataUrl;
+                    const tilingResult = await window.textureGenerator.applyTilingToTexture(originalDataUrl, 512);
+                    tiledTextures[textureType] = tilingResult.dataUrl;
                 }
             }
             

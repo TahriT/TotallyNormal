@@ -1,15 +1,14 @@
 {
-  "version": "1.3.4",
-  "name": "TotallyNormal PBR Generator",
+  "version": "1.4.8",
+  "name": "TotallyNormal PBR Generator", 
   "buildDate": "2025-09-22",
-  "description": "Enhanced Seamless Tiling & 3D Viewer Fixes",
+  "description": "Radial Pattern Tiling: Organic Seamless Transitions",
   "changes": [
-    "Enhanced seamless tiling with smooth hermite interpolation for perfect edge blending",
-    "Fixed async tiling processing to prevent empty image data corruption",
-    "Improved 3D container sizing with explicit minimum dimensions",
-    "Added adaptive blend width calculation for better tiling quality",
-    "Enhanced corner blending with bilinear interpolation for infinite seamlessness",
-    "Fixed version number positioning to avoid UI element overlap",
-    "Improved intro animation with smooth 6-second camera transitions"
+    "Implemented radial pattern-based seamless tiling algorithm",
+    "Replaced linear edge blending with organic radial gradient approach", 
+    "Added distance-based blend weight calculation with cosine and quadratic falloffs",
+    "Enhanced pattern creation for more natural, less obvious tiling transitions",
+    "Improved edge matching with radial influence zones for better visual continuity",
+    "Created organic appearance instead of straight linear blur effects"
   ]
 }

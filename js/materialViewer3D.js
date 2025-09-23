@@ -1,5 +1,6 @@
 class MaterialViewer3D {
     constructor() {
+        this.version = '1.4.7'; // Version tracking - Default sphere geometry + snap to plane for tiling
         this.scene = null;
         this.camera = null;
         this.renderer = null;
@@ -9,7 +10,7 @@ class MaterialViewer3D {
         this.container = null;
         this.animationId = null;
         this.isInitialized = false;
-        this.currentGeometry = 'plane'; // Default geometry - changed to plane
+        this.currentGeometry = 'sphere'; // Default geometry - changed to sphere
         this.rotationSpeed = 0.005;
         this.isRotating = false; // Always start paused
         
@@ -112,10 +113,8 @@ class MaterialViewer3D {
             this.createGeometry();
 
             // Mouse controls (basic orbit)
+            // Setup controls and resize handling (now integrated)
             this.setupControls();
-
-            // Handle resize
-            this.setupResizeHandler();
 
             // Start render loop
             this.animate();
@@ -163,8 +162,8 @@ class MaterialViewer3D {
             side: THREE.DoubleSide // Enable double-sided rendering
         });
 
-        // Start with cube geometry
-        this.mesh = new THREE.Mesh(this.cubeGeometry, this.material);
+        // Start with sphere geometry
+        this.mesh = new THREE.Mesh(this.sphereGeometry, this.material);
         this.mesh.castShadow = true;
         this.mesh.receiveShadow = true;
         this.scene.add(this.mesh);
@@ -175,7 +174,8 @@ class MaterialViewer3D {
         let isDragging = false;
         let previousMousePosition = { x: 0, y: 0 };
 
-        this.renderer.domElement.addEventListener('mousedown', (e) => {
+        // Store event listener references for proper cleanup
+        this._onMouseDown = (e) => {
             isDragging = true;
             previousMousePosition = { x: e.clientX, y: e.clientY };
             
@@ -183,17 +183,21 @@ class MaterialViewer3D {
             if (this.isIntroAnimating) {
                 this.stopIntroAnimation();
             }
-        });
+        };
 
-        this.renderer.domElement.addEventListener('mousemove', (e) => {
+        this._onMouseMove = (e) => {
             if (!isDragging) return;
             this.handleRotation(e.clientX, e.clientY, previousMousePosition);
             previousMousePosition = { x: e.clientX, y: e.clientY };
-        });
+        };
 
-        this.renderer.domElement.addEventListener('mouseup', () => {
+        this._onMouseUp = () => {
             isDragging = false;
-        });
+        };
+
+        this.renderer.domElement.addEventListener('mousedown', this._onMouseDown);
+        this.renderer.domElement.addEventListener('mousemove', this._onMouseMove);
+        this.renderer.domElement.addEventListener('mouseup', this._onMouseUp);
 
         // Touch controls for mobile
         let isTouching = false;
@@ -201,7 +205,7 @@ class MaterialViewer3D {
         let touchStartDistance = 0;
         let initialCameraZ = this.camera.position.z;
 
-        this.renderer.domElement.addEventListener('touchstart', (e) => {
+        this._onTouchStart = (e) => {
             e.preventDefault();
             
             // Stop intro animation on user interaction
@@ -225,9 +229,9 @@ class MaterialViewer3D {
                 );
                 initialCameraZ = this.camera.position.z;
             }
-        });
+        };
 
-        this.renderer.domElement.addEventListener('touchmove', (e) => {
+        this._onTouchMove = (e) => {
             e.preventDefault();
             
             if (e.touches.length === 1 && isTouching) {
@@ -244,26 +248,44 @@ class MaterialViewer3D {
                     Math.pow(touch2.clientY - touch1.clientY, 2)
                 );
                 
-                if (touchStartDistance > 0) {
-                    const zoomFactor = touchStartDistance / currentDistance;
-                    this.camera.position.z = Math.max(1.5, Math.min(10, initialCameraZ * zoomFactor));
-                }
+                const scale = currentDistance / touchStartDistance;
+                const newZ = Math.max(1, Math.min(10, initialCameraZ / scale));
+                this.camera.position.z = newZ;
             }
-        });
+        };
 
-        this.renderer.domElement.addEventListener('touchend', (e) => {
+        this._onTouchEnd = (e) => {
             e.preventDefault();
             isTouching = false;
-            touchStartDistance = 0;
-        });
+        };
+
+        this.renderer.domElement.addEventListener('touchstart', this._onTouchStart);
+        this.renderer.domElement.addEventListener('touchmove', this._onTouchMove);
+        this.renderer.domElement.addEventListener('touchend', this._onTouchEnd);
 
         // Mouse wheel for zoom (desktop)
-        this.renderer.domElement.addEventListener('wheel', (e) => {
+        this._onWheel = (e) => {
             e.preventDefault();
             const zoomSpeed = 0.1;
             this.camera.position.z += e.deltaY * zoomSpeed * 0.01;
             this.camera.position.z = Math.max(1.5, Math.min(10, this.camera.position.z));
-        });
+        };
+
+        this.renderer.domElement.addEventListener('wheel', this._onWheel);
+        
+        // Store window resize handler reference  
+        this._onWindowResize = () => {
+            if (!this.container || !this.renderer || !this.camera) return;
+
+            const width = this.container.clientWidth;
+            const height = this.container.clientHeight;
+
+            this.camera.aspect = width / height;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(width, height);
+        };
+        
+        window.addEventListener('resize', this._onWindowResize);
     }
 
     handleRotation(currentX, currentY, previousPosition) {
@@ -286,19 +308,6 @@ class MaterialViewer3D {
         function toRadians(angle) {
             return angle * (Math.PI / 180);
         }
-    }
-
-    setupResizeHandler() {
-        window.addEventListener('resize', () => {
-            if (!this.container || !this.renderer || !this.camera) return;
-
-            const width = this.container.clientWidth;
-            const height = this.container.clientHeight;
-
-            this.camera.aspect = width / height;
-            this.camera.updateProjectionMatrix();
-            this.renderer.setSize(width, height);
-        });
     }
 
     loadMaterial(textures) {
@@ -390,16 +399,30 @@ class MaterialViewer3D {
             materialConfig.aoMapIntensity = 1.0;
         }
 
+        // Dispose of old material and its textures to prevent memory leaks
+        if (this.mesh.material) {
+            // Dispose of old textures
+            if (this.mesh.material.map) this.mesh.material.map.dispose();
+            if (this.mesh.material.normalMap) this.mesh.material.normalMap.dispose();
+            if (this.mesh.material.displacementMap) this.mesh.material.displacementMap.dispose();
+            if (this.mesh.material.metalnessMap) this.mesh.material.metalnessMap.dispose();
+            if (this.mesh.material.roughnessMap) this.mesh.material.roughnessMap.dispose();
+            if (this.mesh.material.aoMap) this.mesh.material.aoMap.dispose();
+            
+            // Dispose of material
+            this.mesh.material.dispose();
+        }
+
         // Create and apply new material
         const newMaterial = new THREE.MeshStandardMaterial({
             ...materialConfig,
             side: THREE.DoubleSide // Enable double-sided rendering for plane geometry
         });
-        this.mesh.material.dispose(); // Clean up old material
+        
         this.mesh.material = newMaterial;
         this.material = newMaterial;
 
-        console.log('Material textures applied successfully');
+        console.log('Material textures applied successfully with proper cleanup');
         
         // Start intro animation when new material is loaded
         this.startIntroAnimation();
@@ -441,8 +464,9 @@ class MaterialViewer3D {
         this.currentGeometry = geometryType;
         const oldMaterial = this.mesh.material;
         
-        // Remove old mesh
+        // Remove old mesh and dispose of its geometry if it's not a shared one
         this.scene.remove(this.mesh);
+        // Note: We don't dispose geometries here since they are shared instances
         
         // Create new mesh with different geometry
         let geometry;
@@ -461,6 +485,8 @@ class MaterialViewer3D {
         
         // Reset camera position for better viewing
         this.resetCamera();
+        
+        console.log(`Switched to ${geometryType} geometry with proper cleanup`);
     }
 
     // Update texture tiling/zoom for all loaded textures - zooms from center
@@ -505,6 +531,27 @@ class MaterialViewer3D {
                 this.camera.position.set(0, 0, 3);
                 this.mesh.rotation.set(0, 0, 0);
             }
+        }
+    }
+
+    // Snap to plane view instantly (for tiling preview)
+    snapToPlaneView() {
+        if (!this.isInitialized) return;
+        
+        console.log('📐 Snapping to plane view for tiling preview...');
+        
+        // Switch to plane geometry instantly (no animation)
+        this.switchGeometry('plane');
+        
+        // Position camera for optimal plane viewing
+        if (this.camera && this.mesh) {
+            this.camera.position.set(0, 0, 2);
+            this.mesh.rotation.set(0, 0, 0);
+            
+            // Stop any ongoing intro animation
+            this.isIntroAnimating = false;
+            
+            console.log('✅ Snapped to plane view for seamless tiling preview');
         }
     }
 
@@ -617,18 +664,52 @@ class MaterialViewer3D {
             cancelAnimationFrame(this.animationId);
         }
 
-        if (this.renderer) {
-            this.renderer.dispose();
-            if (this.container && this.renderer.domElement) {
-                this.container.removeChild(this.renderer.domElement);
+        // Clean up Three.js resources
+        if (this.scene) {
+            // Dispose of all geometries
+            if (this.sphereGeometry) this.sphereGeometry.dispose();
+            if (this.planeGeometry) this.planeGeometry.dispose();
+            if (this.cubeGeometry) this.cubeGeometry.dispose();
+            
+            // Dispose of materials and their textures
+            if (this.material) {
+                if (this.material.map) this.material.map.dispose();
+                if (this.material.normalMap) this.material.normalMap.dispose();
+                if (this.material.displacementMap) this.material.displacementMap.dispose();
+                if (this.material.metalnessMap) this.material.metalnessMap.dispose();
+                if (this.material.roughnessMap) this.material.roughnessMap.dispose();
+                if (this.material.aoMap) this.material.aoMap.dispose();
+                this.material.dispose();
             }
         }
 
-        if (this.material) {
-            this.material.dispose();
+        // Clean up renderer and DOM
+        if (this.renderer) {
+            // Remove event listeners from renderer DOM element
+            if (this.renderer.domElement) {
+                this.renderer.domElement.removeEventListener('mousedown', this._onMouseDown);
+                this.renderer.domElement.removeEventListener('mousemove', this._onMouseMove);
+                this.renderer.domElement.removeEventListener('mouseup', this._onMouseUp);
+                this.renderer.domElement.removeEventListener('touchstart', this._onTouchStart);
+                this.renderer.domElement.removeEventListener('touchmove', this._onTouchMove);
+                this.renderer.domElement.removeEventListener('touchend', this._onTouchEnd);
+                this.renderer.domElement.removeEventListener('wheel', this._onWheel);
+                
+                if (this.container && this.renderer.domElement.parentNode) {
+                    this.container.removeChild(this.renderer.domElement);
+                }
+            }
+            
+            this.renderer.dispose();
+        }
+        
+        // Remove window resize listener
+        if (this._onWindowResize) {
+            window.removeEventListener('resize', this._onWindowResize);
         }
 
         this.isInitialized = false;
+        console.log('3D Material Viewer disposed with full cleanup');
     }
 }
 

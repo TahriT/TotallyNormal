@@ -19,50 +19,39 @@ TotallyNormal analyzes your photo and creates six essential PBR texture maps:
 ### **Albedo** - The True Colors
 *What the surface actually looks like without any lighting or shadows*
 
-![Albedo Example](docs/images/albedo-example.png)
-
 ### **Normal Map** - Surface Details  
 *Bumps, scratches, and texture that make surfaces look real*
-
-![Normal Example](docs/images/normal-example.png)
 
 ### **Height Map** - Depth Information
 *How raised or recessed different parts of the surface are*
 
-![Height Example](docs/images/height-example.png)
-
 ### **Metallic Map** - Material Classification
 *Which parts are metal vs. non-metal (like paint, plastic, fabric)*
-
-![Metallic Example](docs/images/metallic-example.png)
 
 ### **Ambient Occlusion** - Natural Shadows
 *Where light gets trapped in crevices for realistic depth*
 
-![Occlusion Example](docs/images/occlusion-example.png)
-
 ### **Roughness Map** - Surface Finish
 *Glossy vs. matte areas across the material*
-
-![Roughness Example](docs/images/roughness-example.png)
 
 ## Edge Detection Algorithm Comparison
 
 TotallyNormal offers multiple edge detection algorithms for normal map generation. Here's how they compare using the same source material:
 
 ### Source Material
-![Source Image](docs/images/source-material.png)
-*Brick wall texture used for all algorithm comparisons*
+<img src="docs/images/source-material.png" alt="Source Material" width="300">
+
+*Streamlined mosaic texture used for all algorithm comparisons*
 
 ### Algorithm Results
 
 | Algorithm | Normal Map | Characteristics |
 |-----------|------------|-----------------|
-| **Sobel** | ![Sobel Normal](docs/images/normal-sobel.png) | Standard edge detection, balanced results |
-| **Scharr** | ![Scharr Normal](docs/images/normal-scharr.png) | Enhanced rotation invariance, more accurate |
-| **Prewitt** | ![Prewitt Normal](docs/images/normal-prewitt.png) | Simple and fast, uniform edge detection |
-| **Roberts** | ![Roberts Normal](docs/images/normal-roberts.png) | Sharp edges, good for architectural materials |
-| **Laplacian** | ![Laplacian Normal](docs/images/normal-laplacian.png) | Fine details, emphasizes texture variations |
+| **Sobel** | <img src="docs/images/normal-sobel.png" alt="Sobel Normal" width="200"> | Standard edge detection, balanced results |
+| **Scharr** | <img src="docs/images/normal-scharr.png" alt="Scharr Normal" width="200"> | Enhanced rotation invariance, more accurate |
+| **Prewitt** | <img src="docs/images/normal-prewitt.png" alt="Prewitt Normal" width="200"> | Simple and fast, uniform edge detection |
+| **Roberts** | <img src="docs/images/normal-roberts.png" alt="Roberts Normal" width="200"> | Sharp edges, good for architectural materials |
+| **Laplacian** | <img src="docs/images/normal-laplacian.png" alt="Laplacian Normal" width="200"> | Fine details, emphasizes texture variations |
 
 *Choose the algorithm that best matches your material type for optimal results.*
 

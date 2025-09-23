@@ -1,6 +1,6 @@
 class PBRTextureGenerator {
     constructor() {
-        this.version = '1.4.1'; // Version tracking - Tiling now button-controlled, plane default, fixed animation direction
+        this.version = '1.4.8'; // Version tracking - Radial pattern-based seamless tiling for organic appearance
         this.canvas = document.createElement('canvas');
         this.ctx = this.canvas.getContext('2d');
         this.offscreenCanvas = document.createElement('canvas');
@@ -784,216 +784,540 @@ class PBRTextureGenerator {
         };
     }
     
-    // Aggressive gradient tiling - create smooth blend zones between opposing edges
+    // Radial pattern-based seamless tiling - creates organic, natural-looking patterns
     blendOpposingEdges(data, width, height, blendWidth) {
-        console.log(`🎨 Applying CORRECTED seamless tiling - exact edge-to-edge mapping with ${blendWidth}px blend zones...`);
+        console.log(`� Creating seamless tiling with radial pattern blending (${blendWidth}px zones)...`);
         
-        // Step 1: Horizontal tiling (left-right edges) - FIXED COORDINATE MAPPING
+        // Calculate center coordinates for radial distance calculations
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const maxRadius = Math.sqrt(centerX * centerX + centerY * centerY);
+        
+        // Create a copy of original data for reference
+        const originalData = new Uint8ClampedArray(data);
+        
+        // Step 1: Create edge averaging map
+        const edgeColors = this.calculateEdgeAverages(originalData, width, height);
+        
+        // Step 2: Apply radial pattern blending across entire image
         for (let y = 0; y < height; y++) {
-            // Left blend zone: blend left edge with pixels from right edge
-            for (let x = 0; x < blendWidth; x++) {
-                const leftIndex = (y * width + x) * 4;
-                // Map to corresponding pixel on right edge (mirror position)
-                const rightSourceIndex = (y * width + (width - blendWidth + x)) * 4;
+            for (let x = 0; x < width; x++) {
+                const index = (y * width + x) * 4;
                 
-                // Calculate blend factor: x=0 (leftmost) blends most, x=blendWidth-1 blends least
-                const t = this.smoothBlendFactor(blendWidth - 1 - x, blendWidth);
+                // Calculate distances and blend weights using radial falloff
+                const blendWeights = this.calculateRadialBlendWeights(x, y, width, height, blendWidth, centerX, centerY);
                 
-                // Blend RGB channels
+                // Get original pixel
+                const originalPixel = [
+                    originalData[index],
+                    originalData[index + 1],
+                    originalData[index + 2]
+                ];
+                
+                // Get edge-matched colors for this position
+                const matchedColors = this.getPositionMatchedColors(x, y, width, height, edgeColors, originalPixel);
+                
+                // Apply radial pattern blending
                 for (let c = 0; c < 3; c++) {
-                    const leftValue = data[leftIndex + c];
-                    const rightValue = data[rightSourceIndex + c];
-                    data[leftIndex + c] = Math.round(leftValue * (1 - t) + rightValue * t);
-                }
-            }
-            
-            // Right blend zone: blend right edge with pixels from left edge  
-            for (let x = 0; x < blendWidth; x++) {
-                const rightIndex = (y * width + (width - blendWidth + x)) * 4;
-                // Map to corresponding pixel on left edge (mirror position)
-                const leftSourceIndex = (y * width + x) * 4;
-                
-                // Calculate blend factor: x=0 (inner) blends least, x=blendWidth-1 (rightmost) blends most
-                const t = this.smoothBlendFactor(x, blendWidth);
-                
-                // Blend RGB channels
-                for (let c = 0; c < 3; c++) {
-                    const rightValue = data[rightIndex + c];
-                    const leftValue = data[leftSourceIndex + c];
-                    data[rightIndex + c] = Math.round(rightValue * (1 - t) + leftValue * t);
+                    const original = originalPixel[c];
+                    const matched = matchedColors[c];
+                    
+                    // Use radial weight for organic pattern creation
+                    const blended = original * (1 - blendWeights.edgeInfluence) + matched * blendWeights.edgeInfluence;
+                    data[index + c] = Math.round(blended);
                 }
             }
         }
         
-        // Step 2: Vertical tiling (top-bottom edges) - FIXED: actual edge-to-edge mapping
+        // Step 3: Ensure perfect edge matching for seamless wrapping
+        this.enforceEdgeMatching(data, width, height, edgeColors);
+        
+        console.log('✅ Radial pattern tiling applied - organic seamless transitions created');
+        
+        // Debug: Inspect tiling alignment
+        this.inspectTilingAlignment(data, width, height);
+    }
+    
+    // Debug function to inspect tiling alignment by creating a 2x2 tile grid
+    inspectTilingAlignment(data, width, height) {
+        console.log('🔍 Inspecting tiling alignment...');
+        
+        // Create a 2x2 tiled version for inspection
+        const tiledWidth = width * 2;
+        const tiledHeight = height * 2;
+        const tiledData = new Uint8ClampedArray(tiledWidth * tiledHeight * 4);
+        
+        // Copy original tile to all 4 quadrants
+        for (let tileY = 0; tileY < 2; tileY++) {
+            for (let tileX = 0; tileX < 2; tileX++) {
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const srcIndex = (y * width + x) * 4;
+                        const dstX = tileX * width + x;
+                        const dstY = tileY * height + y;
+                        const dstIndex = (dstY * tiledWidth + dstX) * 4;
+                        
+                        for (let c = 0; c < 4; c++) {
+                            tiledData[dstIndex + c] = data[srcIndex + c];
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Check edge alignment
+        const misalignments = this.checkEdgeAlignment(tiledData, tiledWidth, tiledHeight, width, height);
+        
+        if (misalignments.length > 0) {
+            console.warn('🚨 Tiling misalignments detected:', misalignments);
+        } else {
+            console.log('✅ Perfect tiling alignment confirmed');
+        }
+        
+        return misalignments;
+    }
+    
+    // Check if edges align properly in a tiled pattern
+    checkEdgeAlignment(tiledData, tiledWidth, tiledHeight, originalWidth, originalHeight) {
+        const misalignments = [];
+        const tolerance = 2; // Allow small color differences
+        
+        // Check horizontal seam at the middle
+        const midY = originalHeight;
+        for (let x = 0; x < tiledWidth; x++) {
+            const topIndex = ((midY - 1) * tiledWidth + x) * 4;
+            const bottomIndex = (midY * tiledWidth + x) * 4;
+            
+            for (let c = 0; c < 3; c++) {
+                const diff = Math.abs(tiledData[topIndex + c] - tiledData[bottomIndex + c]);
+                if (diff > tolerance) {
+                    misalignments.push({
+                        type: 'horizontal',
+                        position: { x, y: midY },
+                        channel: c,
+                        topValue: tiledData[topIndex + c],
+                        bottomValue: tiledData[bottomIndex + c],
+                        difference: diff
+                    });
+                }
+            }
+        }
+        
+        // Check vertical seam at the middle
+        const midX = originalWidth;
+        for (let y = 0; y < tiledHeight; y++) {
+            const leftIndex = (y * tiledWidth + (midX - 1)) * 4;
+            const rightIndex = (y * tiledWidth + midX) * 4;
+            
+            for (let c = 0; c < 3; c++) {
+                const diff = Math.abs(tiledData[leftIndex + c] - tiledData[rightIndex + c]);
+                if (diff > tolerance) {
+                    misalignments.push({
+                        type: 'vertical',
+                        position: { x: midX, y },
+                        channel: c,
+                        leftValue: tiledData[leftIndex + c],
+                        rightValue: tiledData[rightIndex + c],
+                        difference: diff
+                    });
+                }
+            }
+        }
+        
+        return misalignments;
+    }
+    
+    // Calculate simple edge averages
+    calculateEdgeAveragesSimple(data, width, height) {
+        const edges = { top: [], bottom: [], left: [], right: [] };
+        
+        // Collect edge pixels
         for (let x = 0; x < width; x++) {
-            // Top blend zone: blend with ACTUAL bottom edge pixels (height-1-y)
-            for (let y = 0; y < blendWidth; y++) {
-                const topIndex = (y * width + x) * 4;
-                // Map to actual bottom edge - CORRECTED coordinate mapping
-                const bottomSourceIndex = ((height - 1 - y) * width + x) * 4;
+            const topIdx = (0 * width + x) * 4;
+            const bottomIdx = ((height - 1) * width + x) * 4;
+            edges.top.push([data[topIdx], data[topIdx + 1], data[topIdx + 2]]);
+            edges.bottom.push([data[bottomIdx], data[bottomIdx + 1], data[bottomIdx + 2]]);
+        }
+        
+        for (let y = 0; y < height; y++) {
+            const leftIdx = (y * width + 0) * 4;
+            const rightIdx = (y * width + (width - 1)) * 4;
+            edges.left.push([data[leftIdx], data[leftIdx + 1], data[leftIdx + 2]]);
+            edges.right.push([data[rightIdx], data[rightIdx + 1], data[rightIdx + 2]]);
+        }
+        
+        return edges;
+    }
+    
+    // Apply improved edge interference with better radial blending
+    applyImprovedEdgeInterference(data, originalData, width, height, blendWidth, edgeAverages) {
+        const blendZone = Math.max(blendWidth, Math.min(width, height) * 0.2); // At least 20% of image
+        
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
                 
-                // Calculate blend factor: y=0 (topmost) blends most, y=blendWidth-1 blends least
-                const t = this.smoothBlendFactor(blendWidth - 1 - y, blendWidth);
+                // Calculate distances to edges
+                const distToLeft = x;
+                const distToRight = width - 1 - x;
+                const distToTop = y;
+                const distToBottom = height - 1 - y;
                 
-                // Blend RGB channels
-                for (let c = 0; c < 3; c++) {
-                    const topValue = data[topIndex + c];
-                    const bottomValue = data[bottomSourceIndex + c];
-                    data[topIndex + c] = Math.round(topValue * (1 - t) + bottomValue * t);
+                // Determine if we're in a blend zone
+                const inLeftZone = distToLeft < blendZone;
+                const inRightZone = distToRight < blendZone;
+                const inTopZone = distToTop < blendZone;
+                const inBottomZone = distToBottom < blendZone;
+                
+                if (inLeftZone || inRightZone || inTopZone || inBottomZone) {
+                    // Calculate blend weights based on distance
+                    const leftWeight = inLeftZone ? 1 - (distToLeft / blendZone) : 0;
+                    const rightWeight = inRightZone ? 1 - (distToRight / blendZone) : 0;
+                    const topWeight = inTopZone ? 1 - (distToTop / blendZone) : 0;
+                    const bottomWeight = inBottomZone ? 1 - (distToBottom / blendZone) : 0;
+                    
+                    // Get opposing edge colors
+                    const leftColor = edgeAverages.right[y];   // Left edge should match right edge
+                    const rightColor = edgeAverages.left[y];   // Right edge should match left edge
+                    const topColor = edgeAverages.bottom[x];   // Top edge should match bottom edge
+                    const bottomColor = edgeAverages.top[x];   // Bottom edge should match top edge
+                    
+                    // Get original pixel
+                    const original = [originalData[idx], originalData[idx + 1], originalData[idx + 2]];
+                    
+                    // Blend with opposing edges
+                    let blended = [...original];
+                    
+                    if (leftWeight > 0) {
+                        for (let c = 0; c < 3; c++) {
+                            blended[c] = blended[c] * (1 - leftWeight) + leftColor[c] * leftWeight;
+                        }
+                    }
+                    
+                    if (rightWeight > 0) {
+                        for (let c = 0; c < 3; c++) {
+                            blended[c] = blended[c] * (1 - rightWeight) + rightColor[c] * rightWeight;
+                        }
+                    }
+                    
+                    if (topWeight > 0) {
+                        for (let c = 0; c < 3; c++) {
+                            blended[c] = blended[c] * (1 - topWeight) + topColor[c] * topWeight;
+                        }
+                    }
+                    
+                    if (bottomWeight > 0) {
+                        for (let c = 0; c < 3; c++) {
+                            blended[c] = blended[c] * (1 - bottomWeight) + bottomColor[c] * bottomWeight;
+                        }
+                    }
+                    
+                    // Apply blended result
+                    for (let c = 0; c < 3; c++) {
+                        data[idx + c] = Math.round(blended[c]);
+                    }
                 }
+            }
+        }
+    }
+    
+    // Force perfect edge pixel matching
+    forceEdgeMatching(data, width, height, edgeAverages) {
+        // Make left and right edges identical
+        for (let y = 0; y < height; y++) {
+            const avgColor = this.averageColors([edgeAverages.left[y], edgeAverages.right[y]]);
+            
+            const leftIdx = (y * width + 0) * 4;
+            const rightIdx = (y * width + (width - 1)) * 4;
+            
+            for (let c = 0; c < 3; c++) {
+                data[leftIdx + c] = avgColor[c];
+                data[rightIdx + c] = avgColor[c];
+            }
+        }
+        
+        // Make top and bottom edges identical
+        for (let x = 0; x < width; x++) {
+            const avgColor = this.averageColors([edgeAverages.top[x], edgeAverages.bottom[x]]);
+            
+            const topIdx = (0 * width + x) * 4;
+            const bottomIdx = ((height - 1) * width + x) * 4;
+            
+            for (let c = 0; c < 3; c++) {
+                data[topIdx + c] = avgColor[c];
+                data[bottomIdx + c] = avgColor[c];
+            }
+        }
+        
+        // Fix corners to average of all edge colors at that position
+        const cornerAvg = this.averageColors([
+            edgeAverages.top[0], edgeAverages.top[width - 1],
+            edgeAverages.bottom[0], edgeAverages.bottom[width - 1],
+            edgeAverages.left[0], edgeAverages.left[height - 1],
+            edgeAverages.right[0], edgeAverages.right[height - 1]
+        ]);
+        
+        const corners = [
+            (0 * width + 0) * 4,                              // Top-left
+            (0 * width + (width - 1)) * 4,                    // Top-right
+            ((height - 1) * width + 0) * 4,                  // Bottom-left
+            ((height - 1) * width + (width - 1)) * 4         // Bottom-right
+        ];
+        
+        corners.forEach(cornerIdx => {
+            for (let c = 0; c < 3; c++) {
+                data[cornerIdx + c] = cornerAvg[c];
+            }
+        });
+    }
+    
+    // Calculate edge averages for seamless matching
+    calculateEdgeAverages(data, width, height) {
+        const edgeColors = {
+            top: [],
+            bottom: [],
+            left: [],
+            right: [],
+            corners: {}
+        };
+        
+        // Collect edge colors
+        for (let x = 0; x < width; x++) {
+            const topIndex = (0 * width + x) * 4;
+            const bottomIndex = ((height - 1) * width + x) * 4;
+            edgeColors.top.push([data[topIndex], data[topIndex + 1], data[topIndex + 2]]);
+            edgeColors.bottom.push([data[bottomIndex], data[bottomIndex + 1], data[bottomIndex + 2]]);
+        }
+        
+        for (let y = 0; y < height; y++) {
+            const leftIndex = (y * width + 0) * 4;
+            const rightIndex = (y * width + (width - 1)) * 4;
+            edgeColors.left.push([data[leftIndex], data[leftIndex + 1], data[leftIndex + 2]]);
+            edgeColors.right.push([data[rightIndex], data[rightIndex + 1], data[rightIndex + 2]]);
+        }
+        
+        // Calculate corner averages
+        edgeColors.corners.topLeft = this.averageColors([edgeColors.top[0], edgeColors.left[0]]);
+        edgeColors.corners.topRight = this.averageColors([edgeColors.top[width - 1], edgeColors.right[0]]);
+        edgeColors.corners.bottomLeft = this.averageColors([edgeColors.bottom[0], edgeColors.left[height - 1]]);
+        edgeColors.corners.bottomRight = this.averageColors([edgeColors.bottom[width - 1], edgeColors.right[height - 1]]);
+        
+        return edgeColors;
+    }
+    
+    // Calculate radial blend weights for organic pattern creation
+    calculateRadialBlendWeights(x, y, width, height, blendWidth, centerX, centerY) {
+        // Distance from edges (0 = at edge, 1 = far from edge)
+        const distFromLeft = Math.min(1, x / blendWidth);
+        const distFromRight = Math.min(1, (width - 1 - x) / blendWidth);
+        const distFromTop = Math.min(1, y / blendWidth);
+        const distFromBottom = Math.min(1, (height - 1 - y) / blendWidth);
+        
+        // Minimum distance to any edge (how close to boundary)
+        const edgeDistance = Math.min(distFromLeft, distFromRight, distFromTop, distFromBottom);
+        
+        // Radial distance from center (normalized)
+        const radialDist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+        const maxRadialDist = Math.sqrt(centerX ** 2 + centerY ** 2);
+        const normalizedRadial = radialDist / maxRadialDist;
+        
+        // Create organic pattern influence using multiple curves
+        const radialCurve = 1 - Math.cos(normalizedRadial * Math.PI * 0.5); // Cosine falloff
+        const edgeCurve = 1 - Math.pow(edgeDistance, 2); // Quadratic falloff from edges
+        
+        // Combine influences for natural pattern
+        const edgeInfluence = Math.max(0, Math.min(1, edgeCurve * 0.7 + radialCurve * 0.3));
+        
+        return {
+            edgeInfluence,
+            edgeDistance,
+            radialDistance: normalizedRadial
+        };
+    }
+    
+    // Get position-matched colors based on wrapping logic
+    getPositionMatchedColors(x, y, width, height, edgeColors, originalPixel) {
+        // Calculate opposite coordinates for wrapping
+        const oppositeX = width - 1 - x;
+        const oppositeY = height - 1 - y;
+        
+        // Determine which edges this pixel should match when wrapping
+        let matchedColor = [originalPixel[0], originalPixel[1], originalPixel[2]];
+        
+        // Near edges: blend with opposite edge colors
+        const isNearLeftEdge = x < width * 0.25;
+        const isNearRightEdge = x > width * 0.75;
+        const isNearTopEdge = y < height * 0.25;
+        const isNearBottomEdge = y > height * 0.75;
+        
+        const colors = [];
+        if (isNearLeftEdge) colors.push(edgeColors.right[y]);
+        if (isNearRightEdge) colors.push(edgeColors.left[y]);
+        if (isNearTopEdge) colors.push(edgeColors.bottom[x]);
+        if (isNearBottomEdge) colors.push(edgeColors.top[x]);
+        
+        // Corner handling
+        if ((isNearLeftEdge && isNearTopEdge)) colors.push(edgeColors.corners.bottomRight);
+        if ((isNearRightEdge && isNearTopEdge)) colors.push(edgeColors.corners.bottomLeft);
+        if ((isNearLeftEdge && isNearBottomEdge)) colors.push(edgeColors.corners.topRight);
+        if ((isNearRightEdge && isNearBottomEdge)) colors.push(edgeColors.corners.topLeft);
+        
+        if (colors.length > 0) {
+            colors.push(originalPixel); // Include original for blending
+            matchedColor = this.averageColors(colors);
+        }
+        
+        return matchedColor;
+    }
+    
+    // Average multiple colors together
+    averageColors(colors) {
+        if (colors.length === 0) return [0, 0, 0];
+        
+        let r = 0, g = 0, b = 0;
+        for (const color of colors) {
+            r += color[0];
+            g += color[1];
+            b += color[2];
+        }
+        
+        return [
+            Math.round(r / colors.length),
+            Math.round(g / colors.length),
+            Math.round(b / colors.length)
+        ];
+    }
+    
+    // Ensure perfect edge matching for seamless wrapping
+    enforceEdgeMatching(data, width, height, edgeColors) {
+        console.log('🎯 Enforcing perfect edge matching to eliminate seams...');
+        
+        // Step 1: Calculate unified corner color that satisfies all edge constraints
+        const unifiedCornerColor = this.calculateUnifiedCornerColor(edgeColors, width, height);
+        
+        // Step 2: Make horizontal edges identical with proper corner integration
+        for (let y = 0; y < height; y++) {
+            let avgColor;
+            
+            // Special handling for corner rows
+            if (y === 0 || y === height - 1) {
+                // Use unified corner color for corner pixels
+                avgColor = unifiedCornerColor;
+            } else {
+                // Regular edge averaging for non-corner rows
+                avgColor = this.averageColors([edgeColors.left[y], edgeColors.right[y]]);
             }
             
-            // Bottom blend zone: blend with ACTUAL top edge pixels (blendWidth-1-y) 
-            for (let y = 0; y < blendWidth; y++) {
-                const bottomIndex = ((height - blendWidth + y) * width + x) * 4;
-                // Map to actual top edge - CORRECTED coordinate mapping
-                const topSourceIndex = ((blendWidth - 1 - y) * width + x) * 4;
-                
-                // Calculate blend factor: y=0 (inner) blends least, y=blendWidth-1 (bottommost) blends most
-                const t = this.smoothBlendFactor(y, blendWidth);
-                
-                // Blend RGB channels
-                for (let c = 0; c < 3; c++) {
-                    const bottomValue = data[bottomIndex + c];
-                    const topValue = data[topSourceIndex + c];
-                    data[bottomIndex + c] = Math.round(bottomValue * (1 - t) + topValue * t);
-                }
+            const leftIndex = (y * width + 0) * 4;
+            const rightIndex = (y * width + (width - 1)) * 4;
+            
+            for (let c = 0; c < 3; c++) {
+                data[leftIndex + c] = avgColor[c];
+                data[rightIndex + c] = avgColor[c];
             }
         }
         
-        // Step 3: Blend corner regions where horizontal and vertical zones overlap
-        this.blendTilingCorners(data, width, height, blendWidth);
+        // Step 3: Make vertical edges identical with proper corner integration
+        for (let x = 0; x < width; x++) {
+            let avgColor;
+            
+            // Special handling for corner columns
+            if (x === 0 || x === width - 1) {
+                // Use unified corner color for corner pixels
+                avgColor = unifiedCornerColor;
+            } else {
+                // Regular edge averaging for non-corner columns
+                avgColor = this.averageColors([edgeColors.top[x], edgeColors.bottom[x]]);
+            }
+            
+            const topIndex = (0 * width + x) * 4;
+            const bottomIndex = ((height - 1) * width + x) * 4;
+            
+            for (let c = 0; c < 3; c++) {
+                data[topIndex + c] = avgColor[c];
+                data[bottomIndex + c] = avgColor[c];
+            }
+        }
         
-        console.log('✅ CORRECTED seamless tiling applied - edges now map correctly for perfect alignment');
+        // Step 4: Explicitly set all corner pixels to unified color
+        this.setUnifiedCornerPixels(data, width, height, unifiedCornerColor);
+        
+        console.log('✅ Perfect edge matching enforced - seams eliminated');
     }
     
-    // Calculate smooth blend factor for gradient transitions
-    smoothBlendFactor(distance, blendWidth) {
-        // Normalize distance to 0-1 range
-        const t = distance / (blendWidth - 1);
+    // Calculate a single unified corner color that works for all corners
+    calculateUnifiedCornerColor(edgeColors, width, height) {
+        // Collect all corner-relevant colors
+        const cornerColors = [
+            edgeColors.corners.topLeft,
+            edgeColors.corners.topRight, 
+            edgeColors.corners.bottomLeft,
+            edgeColors.corners.bottomRight,
+            // Also include edge colors that affect corners
+            edgeColors.top[0],           // Top-left edge
+            edgeColors.top[width - 1],   // Top-right edge  
+            edgeColors.bottom[0],        // Bottom-left edge
+            edgeColors.bottom[width - 1], // Bottom-right edge
+            edgeColors.left[0],          // Left-top edge
+            edgeColors.left[height - 1], // Left-bottom edge
+            edgeColors.right[0],         // Right-top edge
+            edgeColors.right[height - 1] // Right-bottom edge
+        ];
         
-        // Apply smooth curve (cubic ease-in-out for natural blending)
-        return t * t * (3 - 2 * t);
+        return this.averageColors(cornerColors);
     }
     
-    // Fixed corner blending - use correct edge-to-edge mapping for seamless tiling
-    blendTilingCorners(data, width, height, blendWidth) {
-        console.log('🎨 Applying CORRECTED corner blending with proper edge-to-edge mapping...');
+    // Set all corner pixels to the unified corner color
+    setUnifiedCornerPixels(data, width, height, unifiedColor) {
+        const corners = [
+            { x: 0, y: 0 },                    // Top-left
+            { x: width - 1, y: 0 },            // Top-right  
+            { x: 0, y: height - 1 },           // Bottom-left
+            { x: width - 1, y: height - 1 }    // Bottom-right
+        ];
         
-        // Top-left corner
-        for (let y = 0; y < blendWidth; y++) {
-            for (let x = 0; x < blendWidth; x++) {
-                const currentIndex = (y * width + x) * 4;
-                // Use actual opposite edges that will connect when tiled
-                const rightSourceIndex = (y * width + (width - blendWidth + x)) * 4;
-                const bottomSourceIndex = ((height - 1 - y) * width + x) * 4; // ACTUAL bottom edge
-                const diagonalSourceIndex = ((height - 1 - y) * width + (width - blendWidth + x)) * 4; // ACTUAL diagonal
-                
-                const tX = this.smoothBlendFactor(blendWidth - 1 - x, blendWidth);
-                const tY = this.smoothBlendFactor(blendWidth - 1 - y, blendWidth);
-                
-                for (let c = 0; c < 3; c++) {
-                    const current = data[currentIndex + c];
-                    const rightSource = data[rightSourceIndex + c];
-                    const bottomSource = data[bottomSourceIndex + c];
-                    const diagonalSource = data[diagonalSourceIndex + c];
-                    
-                    // Bilinear interpolation with correct source pixels
-                    const top = current * (1 - tX) + rightSource * tX;
-                    const bottom = bottomSource * (1 - tX) + diagonalSource * tX;
-                    const result = Math.round(top * (1 - tY) + bottom * tY);
-                    
-                    data[currentIndex + c] = result;
-                }
+        corners.forEach(corner => {
+            const index = (corner.y * width + corner.x) * 4;
+            for (let c = 0; c < 3; c++) {
+                data[index + c] = unifiedColor[c];
             }
-        }
+        });
         
-        // Top-right corner
-        for (let y = 0; y < blendWidth; y++) {
-            for (let x = 0; x < blendWidth; x++) {
-                const currentIndex = (y * width + (width - blendWidth + x)) * 4;
-                // Use actual opposite edges that will connect when tiled
-                const leftSourceIndex = (y * width + x) * 4;
-                const bottomSourceIndex = ((height - 1 - y) * width + (width - blendWidth + x)) * 4; // ACTUAL bottom edge
-                const diagonalSourceIndex = ((height - 1 - y) * width + x) * 4; // ACTUAL diagonal
-                
-                const tX = this.smoothBlendFactor(x, blendWidth);
-                const tY = this.smoothBlendFactor(blendWidth - 1 - y, blendWidth);
-                
-                for (let c = 0; c < 3; c++) {
-                    const current = data[currentIndex + c];
-                    const leftSource = data[leftSourceIndex + c];
-                    const bottomSource = data[bottomSourceIndex + c];
-                    const diagonalSource = data[diagonalSourceIndex + c];
-                    
-                    // Bilinear interpolation with correct source pixels
-                    const top = current * (1 - tX) + leftSource * tX;
-                    const bottom = bottomSource * (1 - tX) + diagonalSource * tX;
-                    const result = Math.round(top * (1 - tY) + bottom * tY);
-                    
-                    data[currentIndex + c] = result;
-                }
-            }
-        }
+        console.log('🎯 All corner pixels set to unified color for seamless wrapping');
+    }
+    
+    // Fix corner pixels to satisfy both horizontal and vertical edge constraints
+    fixCornerPixels(data, width, height) {
+        console.log('� Fixing corner pixels for seamless edge matching...');
         
-        // Bottom-left corner
-        for (let y = 0; y < blendWidth; y++) {
-            for (let x = 0; x < blendWidth; x++) {
-                const currentIndex = ((height - blendWidth + y) * width + x) * 4;
-                // Use actual opposite edges that will connect when tiled
-                const rightSourceIndex = ((height - blendWidth + y) * width + (width - blendWidth + x)) * 4;
-                const topSourceIndex = ((blendWidth - 1 - y) * width + x) * 4; // ACTUAL top edge
-                const diagonalSourceIndex = ((blendWidth - 1 - y) * width + (width - blendWidth + x)) * 4; // ACTUAL diagonal
-                
-                const tX = this.smoothBlendFactor(blendWidth - 1 - x, blendWidth);
-                const tY = this.smoothBlendFactor(y, blendWidth);
-                
-                for (let c = 0; c < 3; c++) {
-                    const current = data[currentIndex + c];
-                    const rightSource = data[rightSourceIndex + c];
-                    const topSource = data[topSourceIndex + c];
-                    const diagonalSource = data[diagonalSourceIndex + c];
-                    
-                    // Bilinear interpolation with correct source pixels
-                    const top = topSource * (1 - tX) + diagonalSource * tX;
-                    const bottom = current * (1 - tX) + rightSource * tX;
-                    const result = Math.round(top * (1 - tY) + bottom * tY);
-                    
-                    data[currentIndex + c] = result;
-                }
-            }
-        }
+        // Get the edge colors that corners need to match
+        const topEdgeColor = [data[0], data[1], data[2]]; // Top-left = top edge
+        const bottomEdgeColor = [data[(height - 1) * width * 4], data[(height - 1) * width * 4 + 1], data[(height - 1) * width * 4 + 2]]; // Bottom-left = bottom edge
+        const leftEdgeColor = [data[0], data[1], data[2]]; // Top-left = left edge  
+        const rightEdgeColor = [data[(width - 1) * 4], data[(width - 1) * 4 + 1], data[(width - 1) * 4 + 2]]; // Top-right = right edge
         
-        // Bottom-right corner
-        for (let y = 0; y < blendWidth; y++) {
-            for (let x = 0; x < blendWidth; x++) {
-                const currentIndex = ((height - blendWidth + y) * width + (width - blendWidth + x)) * 4;
-                // Use actual opposite edges that will connect when tiled
-                const leftSourceIndex = ((height - blendWidth + y) * width + x) * 4;
-                const topSourceIndex = ((blendWidth - 1 - y) * width + (width - blendWidth + x)) * 4; // ACTUAL top edge
-                const diagonalSourceIndex = ((blendWidth - 1 - y) * width + x) * 4; // ACTUAL diagonal
-                
-                const tX = this.smoothBlendFactor(x, blendWidth);
-                const tY = this.smoothBlendFactor(y, blendWidth);
-                
-                for (let c = 0; c < 3; c++) {
-                    const current = data[currentIndex + c];
-                    const leftSource = data[leftSourceIndex + c];
-                    const topSource = data[topSourceIndex + c];
-                    const diagonalSource = data[diagonalSourceIndex + c];
-                    
-                    // Bilinear interpolation with correct source pixels
-                    const top = topSource * (1 - tX) + diagonalSource * tX;
-                    const bottom = leftSource * (1 - tX) + current * tX;
-                    const result = Math.round(top * (1 - tY) + bottom * tY);
-                    
-                    data[currentIndex + c] = result;
-                }
-            }
-        }
+        // All four corners should be the same color - average of all edge colors
+        const cornerColor = [
+            Math.round((topEdgeColor[0] + bottomEdgeColor[0] + leftEdgeColor[0] + rightEdgeColor[0]) / 4),
+            Math.round((topEdgeColor[1] + bottomEdgeColor[1] + leftEdgeColor[1] + rightEdgeColor[1]) / 4),
+            Math.round((topEdgeColor[2] + bottomEdgeColor[2] + leftEdgeColor[2] + rightEdgeColor[2]) / 4)
+        ];
         
-        console.log('✅ Corner blending completed with correct edge-to-edge mapping');
+        // Set all four corners to the same color
+        const corners = [
+            0,                                    // Top-left
+            (width - 1) * 4,                     // Top-right  
+            (height - 1) * width * 4,           // Bottom-left
+            ((height - 1) * width + (width - 1)) * 4  // Bottom-right
+        ];
+        
+        corners.forEach(cornerIndex => {
+            data[cornerIndex] = cornerColor[0];
+            data[cornerIndex + 1] = cornerColor[1];
+            data[cornerIndex + 2] = cornerColor[2];
+        });
+        
+        console.log('✅ Corner pixels fixed for seamless wrapping');
     }
 
     async applyTilingToTexture(dataUrl, targetSize) {
@@ -1035,18 +1359,28 @@ class PBRTextureGenerator {
                     const resultDataUrl = tempCanvas.toDataURL('image/png');
                     console.log('✅ Tiling applied, result data URL length:', resultDataUrl.length);
                     
+                    // Clean up temporary canvas to prevent memory leaks
+                    tempCanvas.width = 0;
+                    tempCanvas.height = 0;
+                    
                     resolve({
                         dataUrl: resultDataUrl,
                         modifications: tilingResult.modifications
                     });
                 } catch (error) {
                     console.error('🚨 Error applying tiling:', error);
+                    // Clean up on error too
+                    tempCanvas.width = 0;
+                    tempCanvas.height = 0;
                     reject(error);
                 }
             };
             
             img.onerror = (error) => {
                 console.error('🚨 Failed to load image for tiling:', error);
+                // Clean up on error
+                tempCanvas.width = 0;
+                tempCanvas.height = 0;
                 reject(new Error('Failed to load image for tiling'));
             };
             
