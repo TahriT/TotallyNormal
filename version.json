@@ -1,14 +1,14 @@
 {
-  "version": "1.4.8",
+  "version": "1.4.9",
   "name": "TotallyNormal PBR Generator", 
   "buildDate": "2025-09-22",
-  "description": "Radial Pattern Tiling: Organic Seamless Transitions",
+  "description": "Mobile Responsive: Fixed 3D Viewer Scaling Issues",
   "changes": [
-    "Implemented radial pattern-based seamless tiling algorithm",
-    "Replaced linear edge blending with organic radial gradient approach", 
-    "Added distance-based blend weight calculation with cosine and quadratic falloffs",
-    "Enhanced pattern creation for more natural, less obvious tiling transitions",
-    "Improved edge matching with radial influence zones for better visual continuity",
-    "Created organic appearance instead of straight linear blur effects"
+    "Fixed material viewer scaling to properly fit parent container on mobile",
+    "Implemented ResizeObserver for better container responsiveness",
+    "Added orientation change handling for mobile device rotation",
+    "Enhanced canvas sizing with getBoundingClientRect for accurate dimensions",
+    "Improved CSS with max-width constraints to prevent overflow",
+    "Added object-fit: contain for better canvas scaling behavior"
   ]
 }

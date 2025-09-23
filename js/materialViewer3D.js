@@ -1,6 +1,6 @@
 class MaterialViewer3D {
     constructor() {
-        this.version = '1.4.7'; // Version tracking - Default sphere geometry + snap to plane for tiling
+        this.version = '1.4.9'; // Mobile responsive fixes - ResizeObserver and better container scaling
         this.scene = null;
         this.camera = null;
         this.renderer = null;
@@ -274,18 +274,49 @@ class MaterialViewer3D {
         this.renderer.domElement.addEventListener('wheel', this._onWheel);
         
         // Store window resize handler reference  
-        this._onWindowResize = () => {
-            if (!this.container || !this.renderer || !this.camera) return;
-
-            const width = this.container.clientWidth;
-            const height = this.container.clientHeight;
-
-            this.camera.aspect = width / height;
-            this.camera.updateProjectionMatrix();
-            this.renderer.setSize(width, height);
-        };
+        this._onWindowResize = () => this.handleResize();
         
+        // Use ResizeObserver for better container responsiveness
+        if (window.ResizeObserver) {
+            this._resizeObserver = new ResizeObserver((entries) => {
+                for (const entry of entries) {
+                    if (entry.target === this.container) {
+                        this.handleResize();
+                        break;
+                    }
+                }
+            });
+            this._resizeObserver.observe(this.container);
+        }
+        
+        // Fallback to window resize for older browsers
         window.addEventListener('resize', this._onWindowResize);
+        
+        // Also listen to orientation changes for mobile
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => this.handleResize(), 100); // Small delay for orientation change
+        });
+    }
+    
+    handleResize() {
+        if (!this.container || !this.renderer || !this.camera) return;
+
+        const rect = this.container.getBoundingClientRect();
+        const width = Math.max(rect.width, 100); // Minimum width
+        const height = Math.max(rect.height, 100); // Minimum height
+
+        // Update camera aspect ratio
+        this.camera.aspect = width / height;
+        this.camera.updateProjectionMatrix();
+        
+        // Update renderer size
+        this.renderer.setSize(width, height, false);
+        
+        // Ensure pixel ratio is appropriate for device
+        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        this.renderer.setPixelRatio(pixelRatio);
+        
+        console.log(`🔄 3D Viewer resized to ${width}x${height} (pixel ratio: ${pixelRatio})`);
     }
 
     handleRotation(currentX, currentY, previousPosition) {
@@ -703,9 +734,15 @@ class MaterialViewer3D {
             this.renderer.dispose();
         }
         
-        // Remove window resize listener
+        // Remove window resize listener and ResizeObserver
         if (this._onWindowResize) {
             window.removeEventListener('resize', this._onWindowResize);
+            window.removeEventListener('orientationchange', this._onWindowResize);
+        }
+        
+        if (this._resizeObserver) {
+            this._resizeObserver.disconnect();
+            this._resizeObserver = null;
         }
 
         this.isInitialized = false;
