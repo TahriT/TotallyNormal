@@ -1,6 +1,6 @@
 class PBRTextureGenerator {
     constructor() {
-        this.version = '1.4.8'; // Version tracking - Radial pattern-based seamless tiling for organic appearance
+        this.version = '1.6.0'; // Enhanced with dynamic tiling controls and custom blend parameters
         this.canvas = document.createElement('canvas');
         this.ctx = this.canvas.getContext('2d');
         this.offscreenCanvas = document.createElement('canvas');
@@ -1049,24 +1049,19 @@ class PBRTextureGenerator {
             }
         }
         
-        // Fix corners to average of all edge colors at that position
-        const cornerAvg = this.averageColors([
-            edgeAverages.top[0], edgeAverages.top[width - 1],
-            edgeAverages.bottom[0], edgeAverages.bottom[width - 1],
-            edgeAverages.left[0], edgeAverages.left[height - 1],
-            edgeAverages.right[0], edgeAverages.right[height - 1]
-        ]);
-        
+        // Fix corners with proper individual corner matching instead of global average
         const corners = [
-            (0 * width + 0) * 4,                              // Top-left
-            (0 * width + (width - 1)) * 4,                    // Top-right
-            ((height - 1) * width + 0) * 4,                  // Bottom-left
-            ((height - 1) * width + (width - 1)) * 4         // Bottom-right
+            { idx: (0 * width + 0) * 4, edges: [edgeAverages.top[0], edgeAverages.left[0]] },                              // Top-left
+            { idx: (0 * width + (width - 1)) * 4, edges: [edgeAverages.top[width - 1], edgeAverages.right[0]] },          // Top-right
+            { idx: ((height - 1) * width + 0) * 4, edges: [edgeAverages.bottom[0], edgeAverages.left[height - 1]] },      // Bottom-left
+            { idx: ((height - 1) * width + (width - 1)) * 4, edges: [edgeAverages.bottom[width - 1], edgeAverages.right[height - 1]] } // Bottom-right
         ];
         
-        corners.forEach(cornerIdx => {
+        corners.forEach(corner => {
+            // Average only the two adjacent edges for each corner to prevent washing out
+            const cornerColor = this.averageColors(corner.edges);
             for (let c = 0; c < 3; c++) {
-                data[cornerIdx + c] = cornerAvg[c];
+                data[corner.idx + c] = cornerColor[c];
             }
         });
     }
@@ -1105,66 +1100,80 @@ class PBRTextureGenerator {
         return edgeColors;
     }
     
-    // Calculate radial blend weights for organic pattern creation
+    // Calculate precise blend weights for small edge zones only
     calculateRadialBlendWeights(x, y, width, height, blendWidth, centerX, centerY) {
+        // Use smaller, more precise blend zones
+        const effectiveBlendWidth = Math.max(2, Math.min(blendWidth, Math.min(width, height) * 0.05));
+        
         // Distance from edges (0 = at edge, 1 = far from edge)
-        const distFromLeft = Math.min(1, x / blendWidth);
-        const distFromRight = Math.min(1, (width - 1 - x) / blendWidth);
-        const distFromTop = Math.min(1, y / blendWidth);
-        const distFromBottom = Math.min(1, (height - 1 - y) / blendWidth);
+        const distFromLeft = Math.min(1, x / effectiveBlendWidth);
+        const distFromRight = Math.min(1, (width - 1 - x) / effectiveBlendWidth);
+        const distFromTop = Math.min(1, y / effectiveBlendWidth);
+        const distFromBottom = Math.min(1, (height - 1 - y) / effectiveBlendWidth);
         
         // Minimum distance to any edge (how close to boundary)
         const edgeDistance = Math.min(distFromLeft, distFromRight, distFromTop, distFromBottom);
         
-        // Radial distance from center (normalized)
-        const radialDist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
-        const maxRadialDist = Math.sqrt(centerX ** 2 + centerY ** 2);
-        const normalizedRadial = radialDist / maxRadialDist;
-        
-        // Create organic pattern influence using multiple curves
-        const radialCurve = 1 - Math.cos(normalizedRadial * Math.PI * 0.5); // Cosine falloff
-        const edgeCurve = 1 - Math.pow(edgeDistance, 2); // Quadratic falloff from edges
-        
-        // Combine influences for natural pattern
-        const edgeInfluence = Math.max(0, Math.min(1, edgeCurve * 0.7 + radialCurve * 0.3));
+        // Only apply blending very close to edges to prevent large white masks
+        let edgeInfluence = 0;
+        if (edgeDistance < 1) {
+            // Smooth falloff only in very small edge zone
+            const falloff = Math.pow(1 - edgeDistance, 3); // Cubic falloff for sharper transitions
+            edgeInfluence = Math.max(0, Math.min(1, falloff * 0.4)); // Reduced maximum influence
+        }
         
         return {
             edgeInfluence,
             edgeDistance,
-            radialDistance: normalizedRadial
+            radialDistance: 0 // Remove radial influence to prevent pattern artifacts
         };
     }
     
     // Get position-matched colors based on wrapping logic
     getPositionMatchedColors(x, y, width, height, edgeColors, originalPixel) {
-        // Calculate opposite coordinates for wrapping
-        const oppositeX = width - 1 - x;
-        const oppositeY = height - 1 - y;
+        // Use much smaller blend zones to prevent large white masks (5% instead of 25%)
+        const blendZoneRatio = 0.05;
+        const leftZone = width * blendZoneRatio;
+        const rightZone = width * (1 - blendZoneRatio);
+        const topZone = height * blendZoneRatio;
+        const bottomZone = height * (1 - blendZoneRatio);
         
         // Determine which edges this pixel should match when wrapping
         let matchedColor = [originalPixel[0], originalPixel[1], originalPixel[2]];
         
-        // Near edges: blend with opposite edge colors
-        const isNearLeftEdge = x < width * 0.25;
-        const isNearRightEdge = x > width * 0.75;
-        const isNearTopEdge = y < height * 0.25;
-        const isNearBottomEdge = y > height * 0.75;
+        // Only blend near actual edges with small zones
+        const isNearLeftEdge = x < leftZone;
+        const isNearRightEdge = x > rightZone;
+        const isNearTopEdge = y < topZone;
+        const isNearBottomEdge = y > bottomZone;
         
-        const colors = [];
-        if (isNearLeftEdge) colors.push(edgeColors.right[y]);
-        if (isNearRightEdge) colors.push(edgeColors.left[y]);
-        if (isNearTopEdge) colors.push(edgeColors.bottom[x]);
-        if (isNearBottomEdge) colors.push(edgeColors.top[x]);
+        // Single color matching to prevent white washing - prioritize one direction
+        let targetColor = null;
         
-        // Corner handling
-        if ((isNearLeftEdge && isNearTopEdge)) colors.push(edgeColors.corners.bottomRight);
-        if ((isNearRightEdge && isNearTopEdge)) colors.push(edgeColors.corners.bottomLeft);
-        if ((isNearLeftEdge && isNearBottomEdge)) colors.push(edgeColors.corners.topRight);
-        if ((isNearRightEdge && isNearBottomEdge)) colors.push(edgeColors.corners.topLeft);
+        // Handle corners first (most restrictive)
+        if (isNearLeftEdge && isNearTopEdge) {
+            targetColor = edgeColors.corners.bottomRight;
+        } else if (isNearRightEdge && isNearTopEdge) {
+            targetColor = edgeColors.corners.bottomLeft;
+        } else if (isNearLeftEdge && isNearBottomEdge) {
+            targetColor = edgeColors.corners.topRight;
+        } else if (isNearRightEdge && isNearBottomEdge) {
+            targetColor = edgeColors.corners.topLeft;
+        }
+        // Handle single edges (avoid multiple color averaging)
+        else if (isNearLeftEdge) {
+            targetColor = edgeColors.right[y];
+        } else if (isNearRightEdge) {
+            targetColor = edgeColors.left[y];
+        } else if (isNearTopEdge) {
+            targetColor = edgeColors.bottom[x];
+        } else if (isNearBottomEdge) {
+            targetColor = edgeColors.top[x];
+        }
         
-        if (colors.length > 0) {
-            colors.push(originalPixel); // Include original for blending
-            matchedColor = this.averageColors(colors);
+        // Use weighted blending instead of averaging to preserve original color
+        if (targetColor) {
+            matchedColor = this.weightedColorBlend(originalPixel, targetColor, 0.6); // 60% original, 40% target
         }
         
         return matchedColor;
@@ -1173,14 +1182,14 @@ class PBRTextureGenerator {
     // Average multiple colors together
     averageColors(colors) {
         if (colors.length === 0) return [0, 0, 0];
-        
+
         let r = 0, g = 0, b = 0;
         for (const color of colors) {
             r += color[0];
             g += color[1];
             b += color[2];
         }
-        
+
         return [
             Math.round(r / colors.length),
             Math.round(g / colors.length),
@@ -1188,7 +1197,15 @@ class PBRTextureGenerator {
         ];
     }
     
-    // Ensure perfect edge matching for seamless wrapping
+    // Weighted color blending to preserve original characteristics
+    weightedColorBlend(originalColor, targetColor, originalWeight) {
+        const targetWeight = 1 - originalWeight;
+        return [
+            Math.round(originalColor[0] * originalWeight + targetColor[0] * targetWeight),
+            Math.round(originalColor[1] * originalWeight + targetColor[1] * targetWeight),
+            Math.round(originalColor[2] * originalWeight + targetColor[2] * targetWeight)
+        ];
+    }    // Ensure perfect edge matching for seamless wrapping
     enforceEdgeMatching(data, width, height, edgeColors) {
         console.log('🎯 Enforcing perfect edge matching to eliminate seams...');
         
@@ -1386,6 +1403,126 @@ class PBRTextureGenerator {
             
             img.src = dataUrl;
         });
+    }
+    // Dynamic tiling with custom offset and blend parameters
+    async applyDynamicTiling(dataUrl, targetSize, options = {}) {
+        console.log('🔄 Applying dynamic tiling...', { targetSize, options });
+        
+        const { offsetX = 0, offsetY = 0, blendAmount = 0.15 } = options;
+        
+        // Create a temporary canvas to work with the image
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = targetSize;
+        tempCanvas.height = targetSize;
+        
+        // Create image from data URL
+        const img = new Image();
+        
+        return new Promise((resolve, reject) => {
+            img.onload = () => {
+                try {
+                    console.log('🖼️ Image loaded for dynamic tiling, dimensions:', { width: img.width, height: img.height });
+                    
+                    // Apply offset by shifting the image drawing position
+                    const shiftX = Math.round(offsetX * targetSize);
+                    const shiftY = Math.round(offsetY * targetSize);
+                    
+                    // Clear canvas
+                    tempCtx.clearRect(0, 0, targetSize, targetSize);
+                    
+                    // Create a pattern that tiles with offset
+                    // Draw the image 4 times to create seamless wrapping with offset
+                    for (let x = -1; x <= 1; x++) {
+                        for (let y = -1; y <= 1; y++) {
+                            tempCtx.drawImage(
+                                img,
+                                shiftX + x * targetSize,
+                                shiftY + y * targetSize,
+                                targetSize,
+                                targetSize
+                            );
+                        }
+                    }
+                    
+                    // Get image data for blending
+                    const imageData = tempCtx.getImageData(0, 0, targetSize, targetSize);
+                    
+                    // Apply seamless tiling with custom blend amount
+                    const tilingResult = this.makeDynamicSeamless(imageData, blendAmount);
+                    
+                    // Put the result back on canvas
+                    tempCanvas.width = targetSize;
+                    tempCanvas.height = targetSize;
+                    tempCtx.putImageData(tilingResult.imageData, 0, 0);
+                    
+                    const resultDataUrl = tempCanvas.toDataURL('image/png');
+                    console.log('✅ Dynamic tiling applied successfully');
+                    
+                    // Clean up
+                    tempCanvas.width = 0;
+                    tempCanvas.height = 0;
+                    
+                    resolve({
+                        dataUrl: resultDataUrl,
+                        modifications: {
+                            ...tilingResult.modifications,
+                            offsetX,
+                            offsetY,
+                            customBlendAmount: blendAmount
+                        }
+                    });
+                } catch (error) {
+                    console.error('❌ Dynamic tiling error:', error);
+                    reject(error);
+                }
+            };
+            
+            img.onerror = () => {
+                console.error('❌ Failed to load image for dynamic tiling');
+                reject(new Error('Failed to load image'));
+            };
+            
+            img.src = dataUrl;
+        });
+    }
+    
+    // Dynamic seamless tiling with custom blend amount
+    makeDynamicSeamless(imageData, customBlendAmount = 0.15) {
+        console.log('🔄 Applying dynamic seamless tiling with custom blend amount:', customBlendAmount);
+        
+        const width = imageData.width;
+        const height = imageData.height;
+        const data = new Uint8ClampedArray(imageData.data);
+        
+        // Calculate blend width based on custom blend amount
+        const minBlendWidth = 4;
+        const maxBlendWidth = Math.floor(Math.min(width, height) * customBlendAmount);
+        const blendWidth = Math.max(minBlendWidth, Math.min(maxBlendWidth, 64));
+        
+        console.log('🔧 Dynamic tiling parameters:', { 
+            blendWidth, 
+            customBlendAmount,
+            imageDimensions: `${width}x${height}`
+        });
+        
+        // Apply edge blending with custom parameters
+        this.blendOpposingEdges(data, width, height, blendWidth);
+        
+        // Create new image data
+        const seamlessImageData = new ImageData(data, width, height);
+        
+        console.log(`✅ Dynamic seamless tiling applied with ${blendWidth}px blend zones`);
+        
+        return {
+            imageData: seamlessImageData,
+            modifications: {
+                edgeBlending: true,
+                blendWidth: blendWidth,
+                customBlendAmount: customBlendAmount,
+                method: 'dynamic-gradient-blending'
+            }
+        };
     }
 }
 
