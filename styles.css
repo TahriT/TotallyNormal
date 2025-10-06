@@ -499,13 +499,71 @@ body {
     border: 1px solid var(--border);
 }
 
-.material-info h3 {
-    font-size: 2rem;
-    margin-bottom: var(--spacing-sm);
-    background: var(--gradient-primary);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+/* Material Name Input Section */
+.material-name-section {
+    margin-bottom: var(--spacing-md);
+}
+
+.material-name-label {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: var(--spacing-xs);
+    font-weight: 500;
+}
+
+.material-name-input-group {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+    justify-content: center;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.material-name-input {
+    flex: 1;
+    background: var(--surface-elevated);
+    border: 2px solid var(--border);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-sm) var(--spacing-md);
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    font-weight: 500;
+    text-align: center;
+    transition: var(--transition);
+}
+
+.material-name-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+}
+
+.material-name-input::placeholder {
+    color: var(--text-light);
+}
+
+.generate-name-btn {
+    background: var(--surface-elevated);
+    border: 2px solid var(--border);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+}
+
+.generate-name-btn:hover {
+    background: var(--primary-color);
+    color: var(--text-primary);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
 }
 
 /* Tiling Information Styles */
@@ -665,6 +723,141 @@ body {
 .tiling-controls-section .tiling-zoom-controls {
     display: block; /* Always show in material viewer */
     margin-bottom: 0;
+}
+
+/* Dynamic Tiling Controls */
+.dynamic-tiling-controls {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--background-secondary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.tiling-position-controls {
+    margin-bottom: var(--spacing-md);
+}
+
+.tiling-position-controls > label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: var(--spacing-sm);
+}
+
+.position-sliders {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.position-sliders .slider-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.position-sliders .slider-group label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.slider-input-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
+}
+
+.position-input {
+    width: 70px;
+    padding: var(--spacing-xs);
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius-sm);
+    background: var(--background-primary);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.position-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+.position-slider, .blend-slider {
+    appearance: none;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.position-slider:hover, .blend-slider:hover {
+    background: var(--border-dark);
+}
+
+.position-slider::-webkit-slider-thumb, .blend-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: var(--transition);
+}
+
+.position-slider::-webkit-slider-thumb:hover, .blend-slider::-webkit-slider-thumb:hover {
+    background: var(--accent-secondary);
+    transform: scale(1.1);
+}
+
+.position-slider::-moz-range-thumb, .blend-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.tiling-blend-controls {
+    margin-bottom: var(--spacing-md);
+}
+
+.tiling-blend-controls .slider-group label span:first-child {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.tiling-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: space-between;
+}
+
+.btn-small {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.85rem;
+    min-height: auto;
 }
 
 /* PWA and Offline Styles */
@@ -902,12 +1095,32 @@ body {
     box-shadow: 0 8px 40px var(--shadow-heavy);
 }
 
-.preview-3d-section h3 {
-    text-align: center;
+/* Preview Header with Controls */
+.preview-header {
     margin-bottom: var(--spacing-lg);
+}
+
+.preview-header h3 {
+    text-align: center;
+    margin-bottom: var(--spacing-md);
     color: var(--text-primary);
     font-size: 1.5rem;
     font-weight: 600;
+}
+
+/* Geometry Controls Above Viewer */
+.geometry-controls-header {
+    display: flex;
+    justify-content: center;
+    margin-bottom: var(--spacing-md);
+}
+
+.geometry-controls-header .geometry-toggle {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    align-items: center;
+    justify-content: center;
 }
 
 .preview-3d-container {
@@ -958,6 +1171,8 @@ body {
     touch-action: none;
     user-select: none;
     box-sizing: border-box;
+    /* Ensure proper sizing within padded parent container */
+    margin: 0;
 }
 
 /* Three.js canvas styling */
@@ -1479,6 +1694,23 @@ body {
     /* 3D Preview for small screens */
     .preview-3d-section {
         padding: var(--spacing-md);
+    }
+    
+    .preview-header h3 {
+        font-size: 1.2rem;
+        margin-bottom: var(--spacing-sm);
+    }
+    
+    .geometry-controls-header .geometry-toggle {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+    }
+    
+    .geometry-controls-header .geometry-btn,
+    .geometry-controls-header .btn {
+        min-width: auto;
+        padding: var(--spacing-xs) var(--spacing-sm);
+        font-size: 0.8rem;
     }
     
     .threejs-viewport {

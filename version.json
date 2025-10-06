@@ -1,14 +1,21 @@
 {
-  "version": "1.4.9",
+  "version": "1.6.2",
   "name": "TotallyNormal PBR Generator", 
-  "buildDate": "2025-09-22",
-  "description": "Mobile Responsive: Fixed 3D Viewer Scaling Issues",
+  "buildDate": "2025-09-28",
+  "description": "Enhanced Real-Time Controls & Fixed ZIP Downloads",
   "changes": [
-    "Fixed material viewer scaling to properly fit parent container on mobile",
-    "Implemented ResizeObserver for better container responsiveness",
-    "Added orientation change handling for mobile device rotation",
-    "Enhanced canvas sizing with getBoundingClientRect for accurate dimensions",
-    "Improved CSS with max-width constraints to prevent overflow",
-    "Added object-fit: contain for better canvas scaling behavior"
+    "Changed default 3D viewer shape to plane to match default material preview",
+    "Enhanced 3D container scaling with improved dimension detection and parent monitoring",
+    "Added dynamic tiling center point controls with XY position sliders",
+    "Implemented adjustable blend amount slider for tiling transitions", 
+    "Added real-time tiling parameter adjustment without full regeneration",
+    "Enhanced ResizeObserver with parent container monitoring for better responsiveness",
+    "Improved 3D viewer initialization and resize handling with smooth animations",
+    "Fixed intro animation to play only once per session with plane-optimized camera movement",
+    "Implemented real-time X/Y tiling offset preview that updates instantly without errors",
+    "Added dynamic tiling parameter persistence and restoration across material switches",
+    "Added real-time tiling blend amount slider with instant visual feedback via texture filtering",
+    "Implemented manual text input boxes for precise X/Y position entry with bidirectional sync",
+    "Fixed ZIP download functionality with enhanced error handling and progress tracking"
   ]
 }

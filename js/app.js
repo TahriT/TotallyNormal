@@ -66,7 +66,8 @@ class LiveNormalApp {
         // Material preview elements
         this.materialPreview = document.getElementById('materialPreview');
         this.noMaterial = document.getElementById('noMaterial');
-        this.materialName = document.getElementById('materialName');
+        this.materialNameInput = document.getElementById('materialNameInput');
+        this.generateNameBtn = document.getElementById('generateNameBtn');
         this.materialDate = document.getElementById('materialDate');
         
         // Tiling info elements
@@ -133,6 +134,23 @@ class LiveNormalApp {
         this.tilingZoomSlider = document.getElementById('tilingZoom');
         this.tilingZoomValue = document.getElementById('tilingZoomValue');
         this.zoomPresetBtns = document.querySelectorAll('.zoom-preset-btn');
+        
+        // Dynamic tiling controls
+        this.dynamicTilingControls = document.getElementById('dynamicTilingControls');
+        this.tilingOffsetXSlider = document.getElementById('tilingOffsetX');
+        this.tilingOffsetYSlider = document.getElementById('tilingOffsetY');
+        this.tilingBlendAmountSlider = document.getElementById('tilingBlendAmount');
+        this.tilingOffsetXValue = document.getElementById('tilingOffsetXValue');
+        this.tilingOffsetYValue = document.getElementById('tilingOffsetYValue');
+        this.tilingBlendValue = document.getElementById('tilingBlendValue');
+        this.tilingOffsetXInput = document.getElementById('tilingOffsetXInput');
+        this.tilingOffsetYInput = document.getElementById('tilingOffsetYInput');
+        this.resetTilingBtn = document.getElementById('resetTilingBtn');
+        this.applyDynamicTilingBtn = document.getElementById('applyDynamicTilingBtn');
+        
+        // Debug: Check if X slider was found
+        console.log('🔍 X slider element found:', !!this.tilingOffsetXSlider);
+        console.log('🔍 Y slider element found:', !!this.tilingOffsetYSlider);
         
         // Slider value displays
         this.roughnessValue = document.getElementById('roughnessValue');
@@ -505,6 +523,10 @@ class LiveNormalApp {
         this.downloadAllBtn.addEventListener('click', () => this.downloadAllTextures());
         // this.saveToDriveBtn.addEventListener('click', () => this.showDriveSaveDialog()); // Google Drive feature paused
         
+        // Material name controls
+        this.materialNameInput?.addEventListener('input', (e) => this.updateMaterialName(e.target.value));
+        this.generateNameBtn?.addEventListener('click', () => this.generateRandomName());
+        
         // Google Drive modal controls - PAUSED
         // this.confirmSaveDriveBtn.addEventListener('click', () => this.saveToDrive());
         // this.closeDriveModalBtn.addEventListener('click', () => this.closeDriveModal());
@@ -591,6 +613,78 @@ class LiveNormalApp {
             });
         });
         
+        // Dynamic tiling controls
+        this.tilingOffsetXSlider?.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            console.log('🎛️ X Slider changed to:', value); // Debug log
+            if (this.tilingOffsetXValue) {
+                this.tilingOffsetXValue.textContent = value.toFixed(2);
+            }
+            if (this.tilingOffsetXInput) {
+                this.tilingOffsetXInput.value = value.toFixed(2);
+            }
+            this.updateDynamicTilingPreview();
+        });
+        
+        this.tilingOffsetYSlider?.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            console.log('🔄 Y slider changed to:', value);
+            if (this.tilingOffsetYValue) {
+                this.tilingOffsetYValue.textContent = value.toFixed(2);
+            }
+            if (this.tilingOffsetYInput) {
+                this.tilingOffsetYInput.value = value.toFixed(2);
+            }
+            this.updateDynamicTilingPreview();
+        });
+        
+        // Text input handlers for X/Y position
+        this.tilingOffsetXInput?.addEventListener('input', (e) => {
+            let value = parseFloat(e.target.value);
+            if (isNaN(value)) value = 0;
+            value = Math.max(-1, Math.min(1, value)); // Clamp to valid range
+            
+            e.target.value = value.toFixed(2);
+            this.tilingOffsetXSlider.value = value;
+            this.tilingOffsetXValue.textContent = value.toFixed(2);
+            this.updateDynamicTilingPreview();
+        });
+        
+        this.tilingOffsetYInput?.addEventListener('input', (e) => {
+            let value = parseFloat(e.target.value);
+            if (isNaN(value)) value = 0;
+            value = Math.max(-1, Math.min(1, value)); // Clamp to valid range
+            
+            e.target.value = value.toFixed(2);
+            if (this.tilingOffsetYSlider) {
+                this.tilingOffsetYSlider.value = value;
+            }
+            if (this.tilingOffsetYValue) {
+                this.tilingOffsetYValue.textContent = value.toFixed(2);
+            }
+            this.updateDynamicTilingPreview();
+        });
+        
+        this.tilingBlendAmountSlider?.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            this.tilingBlendValue.textContent = Math.round(value * 100) + '%';
+            
+            // Apply real-time blend amount changes
+            if (window.materialViewer3D) {
+                window.materialViewer3D.updateTilingBlendAmount(value);
+            }
+            
+            this.updateDynamicTilingPreview();
+        });
+        
+        this.resetTilingBtn?.addEventListener('click', () => {
+            this.resetTilingPosition();
+        });
+        
+        this.applyDynamicTilingBtn?.addEventListener('click', async () => {
+            await this.applyDynamicTiling();
+        });
+        
         // Material history controls
         this.clearHistoryBtn?.addEventListener('click', () => this.clearMaterialHistory());
         
@@ -633,6 +727,12 @@ class LiveNormalApp {
         if (sectionId === 'materials' && !window.materialViewer3D.isInitialized) {
             setTimeout(() => {
                 window.materialViewer3D.init('threejs-container');
+                // Force a resize after initialization to ensure proper sizing
+                setTimeout(() => {
+                    if (window.materialViewer3D.forceResize) {
+                        window.materialViewer3D.forceResize();
+                    }
+                }, 200);
             }, 100);
         }
         
@@ -1034,8 +1134,10 @@ class LiveNormalApp {
         }
         
         console.log('📝 Updating material info display...');
-        // Update material info
-        this.materialName.textContent = materialToDisplay.name;
+        // Update material info - set input value instead of text content
+        if (this.materialNameInput) {
+            this.materialNameInput.value = materialToDisplay.name || this.generateMaterialName();
+        }
         const dateSpan = this.materialDate.querySelector('span');
         if (dateSpan) {
             const date = materialToDisplay.date ? new Date(materialToDisplay.date) : (materialToDisplay.created || new Date());
@@ -1069,6 +1171,12 @@ class LiveNormalApp {
         // Initialize 3D viewer if not already done
         if (!window.materialViewer3D.isInitialized) {
             window.materialViewer3D.init('threejs-container');
+            // Force a resize after initialization to ensure proper sizing
+            setTimeout(() => {
+                if (window.materialViewer3D.forceResize) {
+                    window.materialViewer3D.forceResize();
+                }
+            }, 200);
         }
         
         // Load textures into 3D viewer
@@ -1079,6 +1187,47 @@ class LiveNormalApp {
             if (this.tilingZoomSlider) {
                 const currentZoom = parseFloat(this.tilingZoomSlider.value);
                 window.materialViewer3D.updateTilingZoom(currentZoom);
+            }
+            
+            // Restore dynamic tiling parameters if available
+            if (materialToDisplay.dynamicTiling) {
+                const { offsetX, offsetY, blendAmount } = materialToDisplay.dynamicTiling;
+                
+                // Update sliders and inputs
+                if (this.tilingOffsetXSlider) {
+                    this.tilingOffsetXSlider.value = offsetX;
+                    if (this.tilingOffsetXValue) {
+                        this.tilingOffsetXValue.textContent = offsetX.toFixed(2);
+                    }
+                }
+                if (this.tilingOffsetXInput) {
+                    this.tilingOffsetXInput.value = offsetX.toFixed(2);
+                }
+                if (this.tilingOffsetYSlider) {
+                    this.tilingOffsetYSlider.value = offsetY;
+                    if (this.tilingOffsetYValue) {
+                        this.tilingOffsetYValue.textContent = offsetY.toFixed(2);
+                    }
+                }
+                if (this.tilingOffsetYInput) {
+                    this.tilingOffsetYInput.value = offsetY.toFixed(2);
+                }
+                if (this.tilingBlendAmountSlider) {
+                    this.tilingBlendAmountSlider.value = blendAmount;
+                    this.tilingBlendValue.textContent = Math.round(blendAmount * 100) + '%';
+                }
+                
+                // Apply the offset to the 3D viewer
+                window.materialViewer3D.updateTilingOffset(offsetX, offsetY);
+                
+                console.log('🔧 Restored dynamic tiling parameters:', { offsetX, offsetY, blendAmount });
+            }
+            
+            // Show dynamic controls if tiling has been applied
+            if (materialToDisplay.tilingApplied || materialToDisplay.dynamicTiling) {
+                this.showDynamicTilingControls();
+            } else {
+                this.hideDynamicTilingControls();
             }
         }
         
@@ -1102,13 +1251,80 @@ class LiveNormalApp {
         document.body.removeChild(link);
     }
 
+    // PWA-compatible download method with fallbacks
+    async downloadBlobWithFallback(blob, filename) {
+        try {
+            // Method 1: Try modern File System Access API (if available)
+            if ('showSaveFilePicker' in window) {
+                console.log('🗂️ Using File System Access API for download...');
+                const fileHandle = await window.showSaveFilePicker({
+                    suggestedName: filename,
+                    types: [{
+                        description: 'ZIP files',
+                        accept: { 'application/zip': ['.zip'] }
+                    }]
+                });
+                const writable = await fileHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                console.log('✅ File saved successfully via File System Access API');
+                return;
+            }
+        } catch (error) {
+            console.log('⚠️ File System Access API failed, trying fallback...', error.message);
+        }
+
+        try {
+            // Method 2: Try Navigator.share API for mobile PWAs
+            if (navigator.canShare && navigator.canShare({ files: [new File([blob], filename)] })) {
+                console.log('📤 Using Web Share API for download...');
+                await navigator.share({
+                    files: [new File([blob], filename, { type: blob.type })],
+                    title: 'Material Textures',
+                    text: `Download ${filename}`
+                });
+                console.log('✅ File shared successfully via Web Share API');
+                return;
+            }
+        } catch (error) {
+            console.log('⚠️ Web Share API failed, using standard download...', error.message);
+        }
+
+        // Method 3: Standard blob download (fallback)
+        console.log('💾 Using standard blob download...');
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.style.display = 'none';
+        
+        // Add to DOM, click, and remove
+        document.body.appendChild(link);
+        
+        // Use user gesture for better PWA compatibility
+        setTimeout(() => {
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            console.log('✅ Standard download completed');
+        }, 100);
+    }
+
     async downloadAllTextures() {
         if (!this.currentMaterial) {
             this.showError('No material available for download.');
             return;
         }
         
+        // Check if JSZip is available
+        if (typeof JSZip === 'undefined') {
+            console.error('❌ JSZip not loaded');
+            this.showError('Download library not loaded. Please refresh the page and try again.');
+            return;
+        }
+        
         try {
+            console.log('📦 Starting ZIP download for material:', this.currentMaterial.name);
             this.showModal('loadingModal');
             this.updateProgress(0);
             
@@ -1116,49 +1332,73 @@ class LiveNormalApp {
             const folder = zip.folder(this.currentMaterial.name);
             
             let progress = 0;
-            const totalTextures = Object.keys(this.currentMaterial.textures).length;
+            const availableTextures = Object.entries(this.currentMaterial.textures).filter(([type, dataUrl]) => dataUrl);
+            const totalTextures = availableTextures.length;
+            
+            console.log(`📊 Processing ${totalTextures} textures for ZIP`);
             
             // Add each texture to the zip
-            for (const [type, dataUrl] of Object.entries(this.currentMaterial.textures)) {
-                const response = await fetch(dataUrl);
-                const blob = await response.blob();
-                folder.file(`${this.currentMaterial.name}_${type}.jpg`, blob);
-                
-                progress++;
-                this.updateProgress((progress / totalTextures) * 80);
+            for (const [type, dataUrl] of availableTextures) {
+                try {
+                    console.log(`📁 Adding ${type} texture to ZIP...`);
+                    
+                    // Convert data URL to blob more safely
+                    const response = await fetch(dataUrl);
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch ${type} texture: ${response.status}`);
+                    }
+                    
+                    const blob = await response.blob();
+                    console.log(`✅ ${type} texture blob size: ${blob.size} bytes`);
+                    
+                    folder.file(`${this.currentMaterial.name}_${type}.jpg`, blob);
+                    
+                    progress++;
+                    this.updateProgress((progress / totalTextures) * 80);
+                } catch (textureError) {
+                    console.warn(`⚠️ Failed to add ${type} texture:`, textureError);
+                    // Continue with other textures
+                }
             }
             
             // Add material info file
             const materialInfo = {
                 name: this.currentMaterial.name,
-                created: this.currentMaterial.created.toISOString(),
-                generator: 'Live Normal Web',
-                textures: Object.keys(this.currentMaterial.textures)
+                created: (this.currentMaterial.created || new Date()).toISOString(),
+                generator: 'TotallyNormal PBR Generator v1.6.1',
+                textures: availableTextures.map(([type]) => type),
+                tilingApplied: this.currentMaterial.tilingApplied || false,
+                dynamicTiling: this.currentMaterial.dynamicTiling || null
             };
             
             folder.file('material_info.json', JSON.stringify(materialInfo, null, 2));
+            console.log('📄 Added material info file to ZIP');
             
             this.updateProgress(90);
             
             // Generate and download zip
-            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            console.log('🗜️ Generating ZIP file...');
+            const zipBlob = await zip.generateAsync({ 
+                type: 'blob',
+                compression: 'DEFLATE',
+                compressionOptions: {
+                    level: 6
+                }
+            });
             
+            console.log(`✅ ZIP generated successfully. Size: ${zipBlob.size} bytes`);
             this.updateProgress(100);
             
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(zipBlob);
-            link.download = `${this.currentMaterial.name}.zip`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            // PWA-compatible download method
+            await this.downloadBlobWithFallback(zipBlob, `${this.currentMaterial.name}.zip`);
             
-            URL.revokeObjectURL(link.href);
             this.hideModal('loadingModal');
+            console.log('🎉 ZIP download completed successfully');
             
         } catch (error) {
-            console.error('Download error:', error);
+            console.error('❌ ZIP Download error:', error);
             this.hideModal('loadingModal');
-            this.showError('Failed to create download package. Please try downloading textures individually.');
+            this.showError(`Failed to create download package: ${error.message}. Please try downloading textures individually.`);
         }
     }
 
@@ -1582,12 +1822,20 @@ class LiveNormalApp {
             this.currentMaterial.textures = tiledTextures;
             this.currentMaterial.tilingApplied = true;
             
-            // Update the display
-            this.displayMaterial(this.currentMaterial);
+            // Update material name to indicate tiling (only if not already tiled)
+            if (!this.currentMaterial.name.includes('_tiled')) {
+                this.currentMaterial.name += '_tiled';
+                // Update the input field with new name
+                if (this.materialNameInput) {
+                    this.materialNameInput.value = this.currentMaterial.name;
+                }
+            }
             
-            // Update version and save to history
-            this.currentMaterial.name += '_tiled';
-            this.addToMaterialHistory(this.currentMaterial);
+            // Update the display with the modified material (don't add to history - it's already the current material)
+            this.displayMaterial(this.currentMaterial, false); // false = don't add to history
+            
+            // Show dynamic tiling controls after successful tiling
+            this.showDynamicTilingControls();
             
             console.log('✅ Tiling applied successfully to all textures');
             
@@ -1599,6 +1847,154 @@ class LiveNormalApp {
             this.applyTilingBtn.disabled = false;
             this.applyTilingBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Apply Seamless Tiling';
         }
+    }
+
+    // Dynamic Tiling Methods
+    updateDynamicTilingPreview() {
+        if (!this.currentMaterial) {
+            return; // Only preview if there's a current material
+        }
+        
+        // Get current offset parameters
+        const offsetX = parseFloat(this.tilingOffsetXSlider?.value || 0);
+        const offsetY = parseFloat(this.tilingOffsetYSlider?.value || 0);
+        const blendAmount = parseFloat(this.tilingBlendAmountSlider?.value || 0.15);
+        
+        // Apply real-time offset changes to the 3D material viewer
+        if (window.materialViewer3D) {
+            window.materialViewer3D.updateTilingOffset(offsetX, offsetY);
+        }
+        
+        console.log('🔧 Dynamic tiling preview updated:', { offsetX, offsetY, blendAmount });
+    }
+    
+    resetTilingPosition() {
+        if (this.tilingOffsetXSlider) {
+            this.tilingOffsetXSlider.value = 0;
+            if (this.tilingOffsetXValue) {
+                this.tilingOffsetXValue.textContent = '0.0';
+            }
+        }
+        if (this.tilingOffsetXInput) {
+            this.tilingOffsetXInput.value = '0.00';
+        }
+        if (this.tilingOffsetYSlider) {
+            this.tilingOffsetYSlider.value = 0;
+            if (this.tilingOffsetYValue) {
+                this.tilingOffsetYValue.textContent = '0.0';
+            }
+        }
+        if (this.tilingOffsetYInput) {
+            this.tilingOffsetYInput.value = '0.00';
+        }
+        if (this.tilingBlendAmountSlider) {
+            this.tilingBlendAmountSlider.value = 0.15;
+            this.tilingBlendValue.textContent = '15%';
+        }
+        
+        // Update preview with reset values
+        this.updateDynamicTilingPreview();
+        
+        console.log('🔄 Tiling position reset to center');
+    }
+    
+    async applyDynamicTiling() {
+        if (!this.currentMaterial) {
+            console.warn('⚠️ No current material for dynamic tiling');
+            alert('Please generate a material first before applying dynamic tiling.');
+            return;
+        }
+        
+        try {
+            console.log('� Saving dynamic tiling parameters...');
+            
+            // Get current parameters
+            const offsetX = parseFloat(this.tilingOffsetXSlider?.value || 0);
+            const offsetY = parseFloat(this.tilingOffsetYSlider?.value || 0);
+            const blendAmount = parseFloat(this.tilingBlendAmountSlider?.value || 0.15);
+            
+            // Save the dynamic tiling parameters to the current material
+            this.currentMaterial.dynamicTiling = { offsetX, offsetY, blendAmount };
+            
+            // Update material name to reflect dynamic tiling (if not already indicated)
+            if (!this.currentMaterial.name.includes('_dynamic')) {
+                this.currentMaterial.name = this.currentMaterial.name.replace('_tiled', '_dynamic_tiled');
+                if (this.materialNameInput) {
+                    this.materialNameInput.value = this.currentMaterial.name;
+                }
+            }
+            
+            console.log('✅ Dynamic tiling parameters saved:', { offsetX, offsetY, blendAmount });
+            alert('Dynamic tiling parameters have been saved to the material!');
+            
+        } catch (error) {
+            console.error('❌ Error saving dynamic tiling:', error);
+            alert('Error saving dynamic tiling parameters. Please try again.');
+        }
+    }
+    
+    showDynamicTilingControls() {
+        if (this.dynamicTilingControls) {
+            this.dynamicTilingControls.style.display = 'block';
+            console.log('🎛️ Dynamic tiling controls shown');
+        }
+    }
+    
+    hideDynamicTilingControls() {
+        if (this.dynamicTilingControls) {
+            this.dynamicTilingControls.style.display = 'none';
+            console.log('🎛️ Dynamic tiling controls hidden');
+        }
+    }
+
+    // Material Name Methods
+    updateMaterialName(newName) {
+        if (this.currentMaterial) {
+            this.currentMaterial.name = newName || this.generateMaterialName();
+            console.log('📝 Material name updated to:', this.currentMaterial.name);
+        }
+    }
+    
+    generateRandomName() {
+        const newName = this.generateMaterialName();
+        if (this.materialNameInput) {
+            this.materialNameInput.value = newName;
+            this.updateMaterialName(newName);
+        }
+    }
+    
+    generateMaterialName() {
+        const adjectives = [
+            'Rough', 'Smooth', 'Weathered', 'Polished', 'Rusted', 'Ancient', 
+            'Modern', 'Textured', 'Glossy', 'Matte', 'Worn', 'Fresh',
+            'Industrial', 'Natural', 'Synthetic', 'Organic', 'Metallic', 'Ceramic',
+            'Wooden', 'Stone', 'Concrete', 'Fabric', 'Leather', 'Plastic'
+        ];
+        
+        const materials = [
+            'Metal', 'Wood', 'Stone', 'Concrete', 'Fabric', 'Leather',
+            'Plastic', 'Ceramic', 'Glass', 'Rubber', 'Paper', 'Canvas',
+            'Steel', 'Iron', 'Copper', 'Bronze', 'Aluminum', 'Titanium',
+            'Marble', 'Granite', 'Sandstone', 'Limestone', 'Slate', 'Brick',
+            'Oak', 'Pine', 'Mahogany', 'Bamboo', 'Cork', 'Plywood'
+        ];
+        
+        const patterns = [
+            'Pattern', 'Surface', 'Texture', 'Material', 'Finish', 'Coating',
+            'Panel', 'Tile', 'Block', 'Sheet', 'Plate', 'Board'
+        ];
+        
+        const randomAdjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+        const randomMaterial = materials[Math.floor(Math.random() * materials.length)];
+        const randomPattern = Math.random() < 0.3 ? patterns[Math.floor(Math.random() * patterns.length)] : '';
+        
+        const baseName = randomPattern ? 
+            `${randomAdjective} ${randomMaterial} ${randomPattern}` :
+            `${randomAdjective} ${randomMaterial}`;
+            
+        // Add random number for uniqueness
+        const randomNum = Math.floor(Math.random() * 999) + 1;
+        return `${baseName} ${randomNum.toString().padStart(3, '0')}`;
     }
 
     // Cleanup method

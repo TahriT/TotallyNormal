@@ -1,6 +1,13 @@
+/**
+ * 3D Material Viewer using Three.js
+ * Provides real-time material preview with PBR textures
+ * Version: 1.6.2
+ * 
+ * Note: For local development, use port 3000 (python -m http.server 3000)
+ */
 class MaterialViewer3D {
     constructor() {
-        this.version = '1.4.9'; // Mobile responsive fixes - ResizeObserver and better container scaling
+        this.version = '1.6.2'; // Enhanced real-time controls and blend amount updates
         this.scene = null;
         this.camera = null;
         this.renderer = null;
@@ -10,18 +17,22 @@ class MaterialViewer3D {
         this.container = null;
         this.animationId = null;
         this.isInitialized = false;
-        this.currentGeometry = 'sphere'; // Default geometry - changed to sphere
+        this._resizeTimeout = null;
+        this.currentGeometry = 'plane'; // Default geometry - changed to plane to match default viewer
         this.rotationSpeed = 0.005;
         this.isRotating = false; // Always start paused
         
         // Intro animation properties
         this.isIntroAnimating = false;
         this.introStartTime = null;
-        this.introDuration = 6000; // 6 seconds for slow, smooth transition
-        this.introStartCameraPosition = { x: 0, y: 8, z: 2 }; // Top-down view
+        this.introDuration = 4000; // 4 seconds for smooth transition
+        this.hasPlayedIntro = false; // Track if intro has been shown
+        
+        // For plane geometry: start from behind/flipped and rotate to front
+        this.introStartCameraPosition = { x: 0, y: 0, z: -3.5 }; // Behind the plane
         this.introEndCameraPosition = { x: 0, y: 0, z: 3.5 }; // Front view
-        this.introStartRotation = { x: -Math.PI/2, y: 0, z: 0 }; // Looking down
-        this.introEndRotation = { x: 0, y: 0, z: 0 }; // Normal view
+        this.introStartRotation = { x: 0, y: Math.PI, z: 0 }; // Looking at back of plane
+        this.introEndRotation = { x: 0, y: 0, z: 0 }; // Normal front view
         
         // Lighting
         this.ambientLight = null;
@@ -121,6 +132,12 @@ class MaterialViewer3D {
 
             this.isInitialized = true;
             console.log('3D Material Viewer initialized successfully');
+            
+            // Trigger initial resize after delay to ensure DOM is ready
+            setTimeout(() => {
+                this.handleResize();
+            }, 3000);
+            
             return true;
 
         } catch (error) {
@@ -162,8 +179,8 @@ class MaterialViewer3D {
             side: THREE.DoubleSide // Enable double-sided rendering
         });
 
-        // Start with sphere geometry
-        this.mesh = new THREE.Mesh(this.sphereGeometry, this.material);
+        // Start with plane geometry (default)
+        this.mesh = new THREE.Mesh(this.planeGeometry, this.material);
         this.mesh.castShadow = true;
         this.mesh.receiveShadow = true;
         this.scene.add(this.mesh);
@@ -279,14 +296,34 @@ class MaterialViewer3D {
         // Use ResizeObserver for better container responsiveness
         if (window.ResizeObserver) {
             this._resizeObserver = new ResizeObserver((entries) => {
+                let shouldResize = false;
                 for (const entry of entries) {
-                    if (entry.target === this.container) {
-                        this.handleResize();
+                    if (entry.target === this.container || this.container.contains(entry.target) || entry.target.contains(this.container)) {
+                        shouldResize = true;
                         break;
                     }
                 }
+                if (shouldResize) {
+                    // Use requestAnimationFrame for smoother resize
+                    if (this._resizeTimeout) {
+                        cancelAnimationFrame(this._resizeTimeout);
+                    }
+                    this._resizeTimeout = requestAnimationFrame(() => {
+                        this.handleResize();
+                        this._resizeTimeout = null;
+                    });
+                }
             });
+            
+            // Observe the container and its parent containers for size changes
             this._resizeObserver.observe(this.container);
+            
+            // Also observe parent containers that might affect sizing
+            let parent = this.container.parentElement;
+            while (parent && parent !== document.body) {
+                this._resizeObserver.observe(parent);
+                parent = parent.parentElement;
+            }
         }
         
         // Fallback to window resize for older browsers
@@ -301,9 +338,37 @@ class MaterialViewer3D {
     handleResize() {
         if (!this.container || !this.renderer || !this.camera) return;
 
+        // Get container dimensions - prioritize clientWidth/Height as they account for padding correctly
         const rect = this.container.getBoundingClientRect();
-        const width = Math.max(rect.width, 100); // Minimum width
-        const height = Math.max(rect.height, 100); // Minimum height
+        const computedStyle = window.getComputedStyle(this.container);
+        
+        // Parse CSS dimensions if available
+        const cssWidth = parseFloat(computedStyle.width);
+        const cssHeight = parseFloat(computedStyle.height);
+        
+        // Prioritize clientWidth/Height as they represent the actual content area
+        // (excluding borders and scrollbars, accounting for padding correctly)
+        const width = Math.max(
+            this.container.clientWidth || 0,     // Best for content area
+            rect.width || 0,                     // Includes borders
+            cssWidth || 0,                       // CSS computed width
+            this.container.offsetWidth || 0,     // Includes borders + padding
+            100 // Minimum fallback
+        );
+        
+        const height = Math.max(
+            this.container.clientHeight || 0,    // Best for content area
+            rect.height || 0,                    // Includes borders
+            cssHeight || 0,                      // CSS computed height
+            this.container.offsetHeight || 0,    // Includes borders + padding
+            100 // Minimum fallback
+        );
+
+        // Only resize if dimensions actually changed
+        const currentSize = this.renderer.getSize(new THREE.Vector2());
+        if (Math.abs(currentSize.width - width) < 1 && Math.abs(currentSize.height - height) < 1) {
+            return; // Skip unnecessary resize
+        }
 
         // Update camera aspect ratio
         this.camera.aspect = width / height;
@@ -316,7 +381,28 @@ class MaterialViewer3D {
         const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
         this.renderer.setPixelRatio(pixelRatio);
         
+        // Enhanced debugging for container sizing
+        const parent = this.container.parentElement;
+        const parentRect = parent ? parent.getBoundingClientRect() : null;
+        const parentComputedStyle = parent ? window.getComputedStyle(parent) : null;
+        
         console.log(`🔄 3D Viewer resized to ${width}x${height} (pixel ratio: ${pixelRatio})`);
+        console.log(`📏 Container: client(${this.container.clientWidth}x${this.container.clientHeight}), rect(${rect.width}x${rect.height}), css(${cssWidth}x${cssHeight})`);
+        if (parent) {
+            console.log(`📦 Parent: client(${parent.clientWidth}x${parent.clientHeight}), rect(${parentRect.width}x${parentRect.height}), padding(${parentComputedStyle.paddingLeft}, ${parentComputedStyle.paddingRight})`);
+        }
+        
+        // Force a render update
+        this.render();
+    }
+
+    // Utility method to force an immediate resize check
+    forceResize() {
+        console.log('🔄 Force resize triggered');
+        // Wait a frame for any CSS changes to apply
+        requestAnimationFrame(() => {
+            this.handleResize();
+        });
     }
 
     handleRotation(currentX, currentY, previousPosition) {
@@ -550,6 +636,99 @@ class MaterialViewer3D {
         }
     }
 
+    // Update texture offset for dynamic tiling position control
+    updateTilingOffset(offsetX, offsetY) {
+        if (this.material) {
+            // Update all material textures with new offset values
+            const updateTextureOffset = (texture) => {
+                if (texture) {
+                    // Get current repeat values (preserve zoom)
+                    const currentRepeatX = texture.repeat.x;
+                    const currentRepeatY = texture.repeat.y;
+                    
+                    // Calculate base offset for centering zoom
+                    const baseOffsetX = (1 - currentRepeatX) * 0.5;
+                    const baseOffsetY = (1 - currentRepeatY) * 0.5;
+                    
+                    // Add dynamic offset (scale by repeat to maintain proper offset behavior)
+                    const dynamicOffsetX = offsetX * currentRepeatX;
+                    const dynamicOffsetY = offsetY * currentRepeatY;
+                    
+                    // Set combined offset
+                    texture.offset.set(
+                        baseOffsetX + dynamicOffsetX, 
+                        baseOffsetY + dynamicOffsetY
+                    );
+                    
+                    texture.needsUpdate = true;
+                }
+            };
+
+            // Update each texture type
+            updateTextureOffset(this.material.map);        // Albedo
+            updateTextureOffset(this.material.normalMap);  // Normal
+            updateTextureOffset(this.material.roughnessMap); // Roughness
+            updateTextureOffset(this.material.metalnessMap); // Metallic
+            updateTextureOffset(this.material.aoMap);      // Ambient Occlusion
+            updateTextureOffset(this.material.displacementMap); // Height/Displacement
+
+            console.log(`🔄 Tiling offset updated: X=${offsetX.toFixed(2)}, Y=${offsetY.toFixed(2)}`);
+        }
+    }
+
+    // Update tiling blend amount for real-time preview
+    updateTilingBlendAmount(blendAmount) {
+        if (this.material) {
+            // More dramatic blend effect using multiple properties
+            const updateTextureBlend = (texture) => {
+                if (texture) {
+                    // Scale effect based on blend amount (0.1 to 0.5)
+                    const normalizedBlend = (blendAmount - 0.1) / 0.4; // 0 to 1 range
+                    
+                    // Adjust filtering - more dramatic difference
+                    if (normalizedBlend > 0.7) {
+                        texture.magFilter = THREE.LinearFilter;
+                        texture.minFilter = THREE.LinearMipmapLinearFilter;
+                    } else if (normalizedBlend > 0.3) {
+                        texture.magFilter = THREE.LinearFilter;
+                        texture.minFilter = THREE.LinearMipmapNearestFilter;
+                    } else {
+                        texture.magFilter = THREE.NearestFilter;
+                        texture.minFilter = THREE.NearestMipmapNearestFilter;
+                    }
+                    
+                    // Adjust anisotropy based on blend amount for smoother/sharper appearance
+                    const maxAnisotropy = this.renderer.capabilities.getMaxAnisotropy();
+                    texture.anisotropy = Math.round(normalizedBlend * maxAnisotropy);
+                    
+                    // Adjust wrap mode
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                    
+                    texture.needsUpdate = true;
+                }
+            };
+
+            // Update all texture types
+            updateTextureBlend(this.material.map);        // Albedo
+            updateTextureBlend(this.material.normalMap);  // Normal
+            updateTextureBlend(this.material.roughnessMap); // Roughness
+            updateTextureBlend(this.material.metalnessMap); // Metallic
+            updateTextureBlend(this.material.aoMap);      // Ambient Occlusion
+            updateTextureBlend(this.material.displacementMap); // Height/Displacement
+
+            // Also adjust material properties for more visible effect
+            if (this.material.roughness !== undefined) {
+                // Slightly adjust material roughness based on blend (subtle effect)
+                const baseRoughness = this.material.userData?.originalRoughness || this.material.roughness;
+                this.material.userData.originalRoughness = baseRoughness;
+                this.material.roughness = baseRoughness + (normalizedBlend * 0.1 - 0.05);
+            }
+
+            console.log(`🌊 Tiling blend amount updated: ${(blendAmount * 100).toFixed(0)}% (anisotropy: ${Math.round((blendAmount - 0.1) / 0.4 * this.renderer.capabilities.getMaxAnisotropy())})`);
+        }
+    }
+
     resetCamera() {
         if (this.camera && this.mesh) {
             if (this.currentGeometry === 'plane') {
@@ -600,18 +779,17 @@ class MaterialViewer3D {
                     const rawProgress = elapsed / this.introDuration;
                     const progress = this.easeInOutCubic(rawProgress);
                     
-                    // Smooth camera position transition
+                    // Smooth camera position transition (behind to front)
                     this.camera.position.x = this.lerp(this.introStartCameraPosition.x, this.introEndCameraPosition.x, progress);
                     this.camera.position.y = this.lerp(this.introStartCameraPosition.y, this.introEndCameraPosition.y, progress);
                     this.camera.position.z = this.lerp(this.introStartCameraPosition.z, this.introEndCameraPosition.z, progress);
                     
-                    // Smooth camera rotation
-                    this.camera.rotation.x = this.lerp(this.introStartRotation.x, this.introEndRotation.x, progress);
+                    // Smooth camera rotation (from back view to front view)
+                    this.camera.rotation.y = this.lerp(this.introStartRotation.y, this.introEndRotation.y, progress);
                     
-                    // Gentle Y-axis rotation for the mesh
+                    // Gentle Y-axis rotation for the mesh during transition
                     if (this.mesh) {
-                        this.mesh.rotation.y += 0.002; // Very subtle rotation
-                        this.mesh.rotation.x = this.lerp(this.introStartRotation.x, this.introEndRotation.x, progress) * 0.3; // Subtle tilt
+                        this.mesh.rotation.y += 0.003; // Subtle rotation to show material
                     }
                 } else {
                     // End intro animation - set final positions
@@ -647,16 +825,26 @@ class MaterialViewer3D {
         return start + (end - start) * progress;
     }
 
-    // Start the smooth intro animation
+    // Start the smooth intro animation (only once per session)
     startIntroAnimation() {
+        // Check if intro has already been played
+        if (this.hasPlayedIntro) {
+            // Skip animation, go directly to final position
+            this.camera.position.set(this.introEndCameraPosition.x, this.introEndCameraPosition.y, this.introEndCameraPosition.z);
+            this.camera.rotation.set(this.introEndRotation.x, this.introEndRotation.y, this.introEndRotation.z);
+            console.log('⏭️ Skipping intro animation - already played once');
+            return;
+        }
+        
         this.isIntroAnimating = true;
         this.introStartTime = Date.now();
+        this.hasPlayedIntro = true; // Mark as played
         
-        // Set initial camera position (top-down view)
+        // Set initial camera position (behind plane, reversed)
         this.camera.position.set(this.introStartCameraPosition.x, this.introStartCameraPosition.y, this.introStartCameraPosition.z);
         this.camera.rotation.set(this.introStartRotation.x, this.introStartRotation.y, this.introStartRotation.z);
         
-        console.log('🎬 Starting smooth intro animation with camera transition...');
+        console.log('🎬 Starting intro animation - camera will transition from behind plane to front...');
     }
 
     // Stop intro animation on user interaction
@@ -693,6 +881,12 @@ class MaterialViewer3D {
     dispose() {
         if (this.animationId) {
             cancelAnimationFrame(this.animationId);
+        }
+        
+        // Clean up resize timeout
+        if (this._resizeTimeout) {
+            cancelAnimationFrame(this._resizeTimeout);
+            this._resizeTimeout = null;
         }
 
         // Clean up Three.js resources
