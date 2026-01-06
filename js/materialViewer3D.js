@@ -1,13 +1,13 @@
 /**
  * 3D Material Viewer using Three.js
  * Provides real-time material preview with PBR textures
- * Version: 1.6.2
+ * Version: 1.6.3
  * 
  * Note: For local development, use port 3000 (python -m http.server 3000)
  */
 class MaterialViewer3D {
     constructor() {
-        this.version = '1.6.2'; // Enhanced real-time controls and blend amount updates
+        this.version = '1.6.3'; // Enhanced real-time controls and blend amount updates
         this.scene = null;
         this.camera = null;
         this.renderer = null;
@@ -136,7 +136,7 @@ class MaterialViewer3D {
             // Trigger initial resize after delay to ensure DOM is ready
             setTimeout(() => {
                 this.handleResize();
-            }, 3000);
+            }, 100);
             
             return true;
 
@@ -375,7 +375,7 @@ class MaterialViewer3D {
         this.camera.updateProjectionMatrix();
         
         // Update renderer size
-        this.renderer.setSize(width, height, false);
+        this.renderer.setSize(width, height, true);
         
         // Ensure pixel ratio is appropriate for device
         const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);

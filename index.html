@@ -8,9 +8,8 @@
     
     <!-- Cache Control - Force refresh -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">    <script src="js/textureGenerator.js?v=1.4.9" defer></script>
-    <script src="js/materialViewer3D.js?v=1.4.9" defer></script>
-    <script src="js/app.js?v=1.4.9" defer></script>   <meta http-equiv="Expires" content="0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
@@ -26,7 +25,7 @@
         const cssTimestamp = Date.now();
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = `styles.css?v=1.4.9&t=${cssTimestamp}`;
+        link.href = `styles.css?v=1.6.3&t=${cssTimestamp}`;
         document.head.appendChild(link);
         console.log('🎨 CSS loaded with cache bust timestamp:', cssTimestamp);
     </script>
@@ -167,73 +166,79 @@
         <!-- Materials Section -->
         <section id="materials" class="section">
             <div class="container">
-                <h2>Generated Material</h2>
-                
-                <!-- Material History Section -->
-                <div id="materialHistory" class="material-history" style="display: none;">
-                    <h3>Material History</h3>
-                    <div class="history-controls">
-                        <button id="clearHistoryBtn" class="btn btn-secondary">
-                            <i class="fas fa-trash"></i>
-                            Clear History
-                        </button>
-                        <span id="historyCount" class="history-count">0 materials saved</span>
-                    </div>
-                    <div id="historyGrid" class="history-grid"></div>
-                </div>
-                
-                <div id="materialPreview" class="material-preview" style="display: none;">
-                    <div class="material-info">
-                        <div class="material-name-section">
-                            <label for="materialNameInput" class="material-name-label">Material Name:</label>
-                            <div class="material-name-input-group">
-                                <input type="text" id="materialNameInput" class="material-name-input" placeholder="Enter material name..." maxlength="50">
-                                <button id="generateNameBtn" class="generate-name-btn" title="Generate random name">
-                                    <i class="fas fa-dice"></i>
+                <div id="materialWorkspace" class="material-workspace" style="display: none;">
+                    <!-- Workspace Header: Unified Name and History -->
+                    <div class="workspace-header">
+                        <div class="workspace-identity">
+                            <div class="material-name-container">
+                                <div class="material-name-input-group">
+                                    <i class="fas fa-file-signature name-icon"></i>
+                                    <input type="text" id="materialNameInput" class="material-name-input" placeholder="Enter material name..." maxlength="50">
+                                    <button id="generateNameBtn" class="generate-name-btn" title="Generate random name">
+                                        <i class="fas fa-dice"></i>
+                                    </button>
+                                </div>
+                                <p id="materialDate" class="material-date-text">Created: <span></span></p>
+                            </div>
+                        </div>
+
+                        <div id="materialHistory" class="material-history-integrated">
+                            <div class="history-carousel-container">
+                                <button id="historyPrevBtn" class="history-nav-btn history-prev" title="Previous">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <div id="historyGrid" class="history-scroll-container"></div>
+                                <button id="historyNextBtn" class="history-nav-btn history-next" title="Next">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                            <div class="history-meta">
+                                <span id="historyCount" class="history-count">0 saved</span>
+                                <button id="clearHistoryBtn" class="btn-icon" title="Clear all history">
+                                    <i class="fas fa-trash"></i>
                                 </button>
                             </div>
                         </div>
-                        <p id="materialDate">Created: <span></span></p>
+                    </div>
+
+                    <div id="materialPreview" class="material-preview">
                         <div id="tilingInfo" class="tiling-info" style="display: none;">
                             <h4><i class="fas fa-sync-alt"></i> Tiling Applied</h4>
                             <div id="tilingDetails" class="tiling-details"></div>
                         </div>
-                    </div>
-                    
-                    <!-- 3D Preview Section -->
-                    <div class="preview-3d-section">
-                        <div class="preview-header">
-                            <h3>3D Material Preview</h3>
-                            
-                            <!-- Geometry Controls Above Viewer -->
-                            <div class="geometry-controls-header">
-                                <div class="geometry-toggle">
-                                    <button id="cubeBtn" class="geometry-btn" data-geometry="cube">
-                                        <i class="fas fa-cube"></i> Cube
-                                    </button>
-                                    <button id="sphereBtn" class="geometry-btn" data-geometry="sphere">
-                                        <i class="fas fa-circle"></i> Sphere
-                                    </button>
-                                    <button id="planeBtn" class="geometry-btn active" data-geometry="plane">
-                                        <i class="fas fa-square"></i> Plane
-                                    </button>
-                                    <button id="resetCameraBtn" class="btn btn-secondary">
-                                        <i class="fas fa-refresh"></i>
-                                        Reset View
-                                    </button>
+                        
+                        <!-- 3D Preview Section -->
+                        <div class="preview-3d-section">
+                            <div class="viewer-container-wrapper">
+                                <!-- 3D Viewer Takes Top Space -->
+                                <div id="threejs-container" class="threejs-viewport-large">
+                                    <!-- Three.js will create canvas here -->
+                                </div>
+
+                                <!-- Floating HUD for Geometry Controls -->
+                                <div class="viewer-hud">
+                                    <div class="geometry-toggle-hud">
+                                        <button id="cubeBtn" class="hud-btn" data-geometry="cube" title="View on Cube">
+                                            <i class="fas fa-cube"></i>
+                                        </button>
+                                        <button id="sphereBtn" class="hud-btn" data-geometry="sphere" title="View on Sphere">
+                                            <i class="fas fa-circle"></i>
+                                        </button>
+                                        <button id="planeBtn" class="hud-btn active" data-geometry="plane" title="View on Plane">
+                                            <i class="fas fa-square"></i>
+                                        </button>
+                                        <div class="hud-divider"></div>
+                                        <button id="resetCameraBtn" class="hud-btn" title="Reset View">
+                                            <i class="fas fa-sync-alt"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <!-- 3D Viewer Takes Top Space -->
-                        <div id="threejs-container" class="threejs-viewport-large">
-                            <!-- Three.js will create canvas here -->
-                        </div>
-                        
-                        <!-- All Controls Below -->
-                        <div class="material-controls-panel">
-                            <!-- Tiling Controls -->
-                            <div class="control-group">
+                            
+                            <!-- All Controls Below -->
+                            <div class="material-controls-panel">
+                                <!-- Tiling Controls -->
+                                <div class="control-group">
                                 <h4>Tiling Controls</h4>
                                 <div class="tiling-controls-section">
                                     <div class="tiling-selector">
@@ -297,6 +302,13 @@
                                             </div>
                                         </div>
                                         
+                                        <div class="tiling-options">
+                                            <label class="checkbox-label">
+                                                <input type="checkbox" id="autoApplyTiling" checked>
+                                                <span><i class="fas fa-sync"></i> Auto-apply changes</span>
+                                            </label>
+                                        </div>
+                                        
                                         <div class="tiling-actions">
                                             <button id="resetTilingBtn" class="btn btn-secondary btn-small">
                                                 <i class="fas fa-undo"></i>
@@ -313,7 +325,13 @@
                             
                             <!-- Material Property Sliders -->
                             <div class="control-group">
-                                <h4>Material Properties</h4>
+                                <div class="control-group-header">
+                                    <h4>Material Properties</h4>
+                                    <button id="resetMaterialPropertiesBtn" class="btn btn-secondary btn-small" title="Reset to defaults">
+                                        <i class="fas fa-undo"></i>
+                                        Reset
+                                    </button>
+                                </div>
                                 <div class="material-sliders">
                                     <div class="slider-group">
                                         <label>
@@ -497,7 +515,7 @@
                                 <h4>Project Details</h4>
                                 <ul>
                                     <li><strong>Built with:</strong> Pure JavaScript, HTML5 Canvas, Three.js</li>
-                                    <li><strong>Version:</strong> 1.4.1</li>
+                                    <li><strong>Version:</strong> 1.6.3</li>
                                     <li><strong>License:</strong> Open Source</li>
                                     <li><strong>Year:</strong> 2025</li>
                                 </ul>
@@ -573,7 +591,7 @@
         
         // Dynamic cache busting with timestamp
         const CACHE_BUST = Date.now();
-        window.APP_VERSION = '1.4.4';
+        window.APP_VERSION = '1.6.3';
         window.CACHE_BUST = CACHE_BUST;
         
         // Force reload scripts with timestamp if needed
@@ -600,8 +618,8 @@
         const cacheBustTimestamp = Date.now();
         console.log('📦 Loading scripts with timestamp cache busting:', cacheBustTimestamp);
     </script>
-    <script src="js/textureGenerator.js?v=1.4.4" defer></script>
-    <script src="js/materialViewer3D.js?v=1.4.4" defer></script>
-    <script src="js/app.js?v=1.4.4" defer></script>
+    <script src="js/textureGenerator.js?v=1.6.3" defer></script>
+    <script src="js/materialViewer3D.js?v=1.6.3" defer></script>
+    <script src="js/app.js?v=1.6.3" defer></script>
 </body>
 </html>

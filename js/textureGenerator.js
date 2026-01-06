@@ -1,6 +1,6 @@
 class PBRTextureGenerator {
     constructor() {
-        this.version = '1.6.0'; // Enhanced with dynamic tiling controls and custom blend parameters
+        this.version = '1.6.3'; // Enhanced with Gaussian blur seamless tiling
         this.canvas = document.createElement('canvas');
         this.ctx = this.canvas.getContext('2d');
         this.offscreenCanvas = document.createElement('canvas');
@@ -721,14 +721,106 @@ class PBRTextureGenerator {
         return dataUrl;
     }
 
-    // Correct Seamless Tiling Algorithm - blend actual edges that will connect
+    // Gaussian Blur Kernel Generator
+    generateGaussianKernel(radius) {
+        const size = radius * 2 + 1;
+        const kernel = new Array(size);
+        const sigma = radius / 3;
+        const sigma2 = 2 * sigma * sigma;
+        let sum = 0;
+        
+        for (let i = 0; i < size; i++) {
+            const x = i - radius;
+            kernel[i] = Math.exp(-(x * x) / sigma2);
+            sum += kernel[i];
+        }
+        
+        // Normalize kernel
+        for (let i = 0; i < size; i++) {
+            kernel[i] /= sum;
+        }
+        
+        return kernel;
+    }
+    
+    // Apply 1D Gaussian blur horizontally
+    gaussianBlurHorizontal(data, width, height, kernel) {
+        const radius = Math.floor(kernel.length / 2);
+        const result = new Uint8ClampedArray(data.length);
+        
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                let r = 0, g = 0, b = 0, a = 0;
+                
+                for (let k = -radius; k <= radius; k++) {
+                    // Wrap around for seamless tiling
+                    let sx = (x + k + width) % width;
+                    const idx = (y * width + sx) * 4;
+                    const weight = kernel[k + radius];
+                    
+                    r += data[idx] * weight;
+                    g += data[idx + 1] * weight;
+                    b += data[idx + 2] * weight;
+                    a += data[idx + 3] * weight;
+                }
+                
+                const dstIdx = (y * width + x) * 4;
+                result[dstIdx] = Math.round(r);
+                result[dstIdx + 1] = Math.round(g);
+                result[dstIdx + 2] = Math.round(b);
+                result[dstIdx + 3] = Math.round(a);
+            }
+        }
+        
+        return result;
+    }
+    
+    // Apply 1D Gaussian blur vertically
+    gaussianBlurVertical(data, width, height, kernel) {
+        const radius = Math.floor(kernel.length / 2);
+        const result = new Uint8ClampedArray(data.length);
+        
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                let r = 0, g = 0, b = 0, a = 0;
+                
+                for (let k = -radius; k <= radius; k++) {
+                    // Wrap around for seamless tiling
+                    let sy = (y + k + height) % height;
+                    const idx = (sy * width + x) * 4;
+                    const weight = kernel[k + radius];
+                    
+                    r += data[idx] * weight;
+                    g += data[idx + 1] * weight;
+                    b += data[idx + 2] * weight;
+                    a += data[idx + 3] * weight;
+                }
+                
+                const dstIdx = (y * width + x) * 4;
+                result[dstIdx] = Math.round(r);
+                result[dstIdx + 1] = Math.round(g);
+                result[dstIdx + 2] = Math.round(b);
+                result[dstIdx + 3] = Math.round(a);
+            }
+        }
+        
+        return result;
+    }
+    
+    // Full 2D Gaussian blur (separable implementation for performance)
+    applyGaussianBlur(data, width, height, radius) {
+        const kernel = this.generateGaussianKernel(radius);
+        const horizontalPass = this.gaussianBlurHorizontal(data, width, height, kernel);
+        return this.gaussianBlurVertical(horizontalPass, width, height, kernel);
+    }
+
+    // Correct Seamless Tiling Algorithm using Gaussian blur cross-fade
     makeSeamless(imageData) {
-        console.log('🔄 Applying correct seamless tiling algorithm...');
+        console.log('🔄 Applying Gaussian blur seamless tiling algorithm...');
         console.log('📊 Input imageData:', {
             width: imageData.width,
             height: imageData.height,
-            dataLength: imageData.data.length,
-            firstPixels: Array.from(imageData.data.slice(0, 12))
+            dataLength: imageData.data.length
         });
         
         const width = imageData.width;
@@ -755,87 +847,175 @@ class PBRTextureGenerator {
             };
         }
         
-        // Calculate aggressive blend width for gradient blending
-        const minBlendWidth = 8; // Minimum blend zone
-        const maxBlendWidth = Math.floor(Math.min(width, height) * 0.15); // 15% of smaller dimension
-        const blendWidth = Math.max(minBlendWidth, Math.min(maxBlendWidth, 32)); // Clamp between 8-32 pixels
+        // Calculate blend width - reduced from 20% to 12% for less aggressive blur
+        const blendWidthRatio = 0.12;
+        const blendWidth = Math.max(12, Math.floor(Math.min(width, height) * blendWidthRatio));
+        const blurRadius = Math.max(2, Math.floor(blendWidth / 5));
         
-        console.log('🔧 Aggressive gradient tiling parameters:', { 
+        console.log('🔧 Gaussian seamless tiling parameters:', { 
             blendWidth, 
+            blurRadius,
             imageDimensions: `${width}x${height}`,
-            method: 'gradient-edge-blending'
+            method: 'gaussian-crossfade-blending'
         });
         
-        // Apply aggressive gradient blending
-        this.blendOpposingEdges(data, width, height, blendWidth);
+        // Apply Gaussian blur seamless tiling
+        const result = this.gaussianSeamlessBlend(data, width, height, blendWidth, blurRadius);
         
         // Create new image data
-        const seamlessImageData = new ImageData(data, width, height);
+        const seamlessImageData = new ImageData(result, width, height);
         
-        console.log(`✅ Aggressive gradient tiling applied with ${blendWidth}px blend zones`);
+        console.log(`✅ Gaussian blur seamless tiling applied with ${blendWidth}px blend zones, ${blurRadius}px blur radius`);
         
         return {
             imageData: seamlessImageData,
             modifications: {
                 edgeBlending: true,
                 blendWidth: blendWidth,
-                method: 'gradient-edge-blending'
+                blurRadius: blurRadius,
+                method: 'gaussian-crossfade-blending'
             }
         };
     }
     
-    // Radial pattern-based seamless tiling - creates organic, natural-looking patterns
-    blendOpposingEdges(data, width, height, blendWidth) {
-        console.log(`� Creating seamless tiling with radial pattern blending (${blendWidth}px zones)...`);
+    // Gaussian blur-based seamless tiling with cross-fade blending - Optimized for base image preservation
+    gaussianSeamlessBlend(data, width, height, blendWidth, blurRadius) {
+        console.log(`🔄 Creating seamless tiling with improved cross-fade (${blendWidth}px blend zone)...`);
         
-        // Calculate center coordinates for radial distance calculations
-        const centerX = width / 2;
-        const centerY = height / 2;
-        const maxRadius = Math.sqrt(centerX * centerX + centerY * centerY);
-        
-        // Create a copy of original data for reference
         const originalData = new Uint8ClampedArray(data);
+        const shiftedData = new Uint8ClampedArray(data.length);
         
-        // Step 1: Create edge averaging map
-        const edgeColors = this.calculateEdgeAverages(originalData, width, height);
+        // Half-shift version (offset by 50%) - this moves boundary seams to the center
+        const halfWidth = Math.floor(width / 2);
+        const halfHeight = Math.floor(height / 2);
         
-        // Step 2: Apply radial pattern blending across entire image
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
-                const index = (y * width + x) * 4;
+                const srcX = (x + halfWidth) % width;
+                const srcY = (y + halfHeight) % height;
+                const srcIdx = (srcY * width + srcX) * 4;
+                const dstIdx = (y * width + x) * 4;
                 
-                // Calculate distances and blend weights using radial falloff
-                const blendWeights = this.calculateRadialBlendWeights(x, y, width, height, blendWidth, centerX, centerY);
+                shiftedData[dstIdx] = originalData[srcIdx];
+                shiftedData[dstIdx + 1] = originalData[srcIdx + 1];
+                shiftedData[dstIdx + 2] = originalData[srcIdx + 2];
+                shiftedData[dstIdx + 3] = originalData[srcIdx + 3];
+            }
+        }
+        
+        // APPLY BLUR ONLY TO THE SEAM AREAS to maintain texture detail in the center
+        // We still need the blurred versions to hide the seam lines, 
+        // but we'll blend them more intelligently.
+        const blurredShifted = this.applyGaussianBlur(shiftedData, width, height, blurRadius);
+        
+        // Calculate the blend ratio based on the requested blendWidth
+        // We want a flat center to preserve the original image data
+        const blendRatioX = blendWidth / halfWidth;
+        const blendRatioY = blendWidth / halfHeight;
+        
+        const result = new Uint8ClampedArray(data.length);
+        
+        for (let y = 0; y < height; y++) {
+            const dy = Math.abs(y - halfHeight) / halfHeight; // 0 at center, 1 at edges
+            let maskY;
+            if (dy < (1 - blendRatioY)) {
+                maskY = 1.0;
+            } else {
+                // Smooth transition at the edges
+                const localDist = (1 - dy) / blendRatioY;
+                maskY = 0.5 * (1 - Math.cos(Math.PI * localDist));
+            }
+
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
+                const dx = Math.abs(x - halfWidth) / halfWidth;
                 
-                // Get original pixel
-                const originalPixel = [
-                    originalData[index],
-                    originalData[index + 1],
-                    originalData[index + 2]
-                ];
+                let maskX;
+                if (dx < (1 - blendRatioX)) {
+                    maskX = 1.0;
+                } else {
+                    const localDist = (1 - dx) / blendRatioX;
+                    maskX = 0.5 * (1 - Math.cos(Math.PI * localDist));
+                }
                 
-                // Get edge-matched colors for this position
-                const matchedColors = this.getPositionMatchedColors(x, y, width, height, edgeColors, originalPixel);
+                // Combine masks - use Math.min for a rectangular blend zone 
+                // instead of a diamond (Math.product)
+                const blendFactor = Math.min(maskX, maskY);
                 
-                // Apply radial pattern blending
-                for (let c = 0; c < 3; c++) {
-                    const original = originalPixel[c];
-                    const matched = matchedColors[c];
+                // In the center (blendFactor closer to 1), use originalData (high detail)
+                // Near edges (blendFactor closer to 0), use blurredShifted (to hide original seams)
+                for (let c = 0; c < 4; c++) {
+                    const originalValue = originalData[idx + c];
+                    const shiftedValue = blurredShifted[idx + c];
                     
-                    // Use radial weight for organic pattern creation
-                    const blended = original * (1 - blendWeights.edgeInfluence) + matched * blendWeights.edgeInfluence;
-                    data[index + c] = Math.round(blended);
+                    result[idx + c] = Math.round(
+                        originalValue * blendFactor + 
+                        shiftedValue * (1 - blendFactor)
+                    );
                 }
             }
         }
         
-        // Step 3: Ensure perfect edge matching for seamless wrapping
-        this.enforceEdgeMatching(data, width, height, edgeColors);
+        // Final edge refinement
+        this.refineSeamEdges(result, width, height, blurRadius);
         
-        console.log('✅ Radial pattern tiling applied - organic seamless transitions created');
+        return result;
+    }
+    
+    // Refine edges to ensure perfect seamless matching
+    refineSeamEdges(data, width, height, blurRadius) {
+        console.log('🎯 Refining seam edges for perfect matching...');
         
-        // Debug: Inspect tiling alignment
-        this.inspectTilingAlignment(data, width, height);
+        const refinementWidth = Math.min(blurRadius * 2, Math.floor(Math.min(width, height) * 0.05));
+        
+        // Average left/right edges
+        for (let y = 0; y < height; y++) {
+            for (let offset = 0; offset < refinementWidth; offset++) {
+                const leftIdx = (y * width + offset) * 4;
+                const rightIdx = (y * width + (width - 1 - offset)) * 4;
+                
+                const blendWeight = 1 - (offset / refinementWidth);
+                
+                for (let c = 0; c < 3; c++) {
+                    const avg = Math.round((data[leftIdx + c] + data[rightIdx + c]) / 2);
+                    data[leftIdx + c] = Math.round(data[leftIdx + c] * (1 - blendWeight) + avg * blendWeight);
+                    data[rightIdx + c] = Math.round(data[rightIdx + c] * (1 - blendWeight) + avg * blendWeight);
+                }
+            }
+        }
+        
+        // Average top/bottom edges
+        for (let x = 0; x < width; x++) {
+            for (let offset = 0; offset < refinementWidth; offset++) {
+                const topIdx = (offset * width + x) * 4;
+                const bottomIdx = ((height - 1 - offset) * width + x) * 4;
+                
+                const blendWeight = 1 - (offset / refinementWidth);
+                
+                for (let c = 0; c < 3; c++) {
+                    const avg = Math.round((data[topIdx + c] + data[bottomIdx + c]) / 2);
+                    data[topIdx + c] = Math.round(data[topIdx + c] * (1 - blendWeight) + avg * blendWeight);
+                    data[bottomIdx + c] = Math.round(data[bottomIdx + c] * (1 - blendWeight) + avg * blendWeight);
+                }
+            }
+        }
+        
+        console.log('✅ Seam edges refined for seamless wrapping');
+    }
+    
+    // Legacy method for backward compatibility - now uses Gaussian approach
+    blendOpposingEdges(data, width, height, blendWidth) {
+        console.log(`🔄 Blending opposing edges with Gaussian falloff (${blendWidth}px zones)...`);
+        
+        const blurRadius = Math.max(2, Math.floor(blendWidth / 4));
+        const result = this.gaussianSeamlessBlend(data, width, height, blendWidth, blurRadius);
+        
+        // Copy result back to data
+        for (let i = 0; i < data.length; i++) {
+            data[i] = result[i];
+        }
+        
+        console.log('✅ Gaussian edge blending applied');
     }
     
     // Debug function to inspect tiling alignment by creating a 2x2 tile grid
@@ -1487,40 +1667,43 @@ class PBRTextureGenerator {
         });
     }
     
-    // Dynamic seamless tiling with custom blend amount
+    // Dynamic seamless tiling with custom blend amount using Gaussian blur
     makeDynamicSeamless(imageData, customBlendAmount = 0.15) {
-        console.log('🔄 Applying dynamic seamless tiling with custom blend amount:', customBlendAmount);
+        console.log('🔄 Applying dynamic Gaussian seamless tiling with custom blend amount:', customBlendAmount);
         
         const width = imageData.width;
         const height = imageData.height;
         const data = new Uint8ClampedArray(imageData.data);
         
-        // Calculate blend width based on custom blend amount
-        const minBlendWidth = 4;
-        const maxBlendWidth = Math.floor(Math.min(width, height) * customBlendAmount);
-        const blendWidth = Math.max(minBlendWidth, Math.min(maxBlendWidth, 64));
+        // Calculate blend width based on custom blend amount (clamped between 5% and 30%)
+        const clampedBlendAmount = Math.max(0.05, Math.min(0.30, customBlendAmount));
+        const blendWidth = Math.max(8, Math.floor(Math.min(width, height) * clampedBlendAmount));
+        const blurRadius = Math.max(2, Math.floor(blendWidth / 4));
         
-        console.log('🔧 Dynamic tiling parameters:', { 
+        console.log('🔧 Dynamic Gaussian tiling parameters:', { 
             blendWidth, 
-            customBlendAmount,
-            imageDimensions: `${width}x${height}`
+            blurRadius,
+            customBlendAmount: clampedBlendAmount,
+            imageDimensions: `${width}x${height}`,
+            method: 'dynamic-gaussian-blending'
         });
         
-        // Apply edge blending with custom parameters
-        this.blendOpposingEdges(data, width, height, blendWidth);
+        // Apply Gaussian seamless blending
+        const result = this.gaussianSeamlessBlend(data, width, height, blendWidth, blurRadius);
         
         // Create new image data
-        const seamlessImageData = new ImageData(data, width, height);
+        const seamlessImageData = new ImageData(result, width, height);
         
-        console.log(`✅ Dynamic seamless tiling applied with ${blendWidth}px blend zones`);
+        console.log(`✅ Dynamic Gaussian seamless tiling applied with ${blendWidth}px blend zones, ${blurRadius}px blur`);
         
         return {
             imageData: seamlessImageData,
             modifications: {
                 edgeBlending: true,
                 blendWidth: blendWidth,
-                customBlendAmount: customBlendAmount,
-                method: 'dynamic-gradient-blending'
+                blurRadius: blurRadius,
+                customBlendAmount: clampedBlendAmount,
+                method: 'dynamic-gaussian-blending'
             }
         };
     }

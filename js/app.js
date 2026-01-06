@@ -64,6 +64,7 @@ class LiveNormalApp {
         this.navButtons = document.querySelectorAll('.nav-btn');
         
         // Material preview elements
+        this.materialWorkspace = document.getElementById('materialWorkspace');
         this.materialPreview = document.getElementById('materialPreview');
         this.noMaterial = document.getElementById('noMaterial');
         this.materialNameInput = document.getElementById('materialNameInput');
@@ -115,6 +116,8 @@ class LiveNormalApp {
         this.historyGrid = document.getElementById('historyGrid');
         this.historyCount = document.getElementById('historyCount');
         this.clearHistoryBtn = document.getElementById('clearHistoryBtn');
+        this.historyPrevBtn = document.getElementById('historyPrevBtn');
+        this.historyNextBtn = document.getElementById('historyNextBtn');
         
         // Mobile capture button
         this.mobileCaptureArea = document.getElementById('mobileCaptureArea');
@@ -147,6 +150,10 @@ class LiveNormalApp {
         this.tilingOffsetYInput = document.getElementById('tilingOffsetYInput');
         this.resetTilingBtn = document.getElementById('resetTilingBtn');
         this.applyDynamicTilingBtn = document.getElementById('applyDynamicTilingBtn');
+        this.autoApplyTilingCheckbox = document.getElementById('autoApplyTiling');
+        
+        // Material properties reset button
+        this.resetMaterialPropertiesBtn = document.getElementById('resetMaterialPropertiesBtn');
         
         // Debug: Check if X slider was found
         console.log('🔍 X slider element found:', !!this.tilingOffsetXSlider);
@@ -685,8 +692,37 @@ class LiveNormalApp {
             await this.applyDynamicTiling();
         });
         
+        // Auto-apply checkbox - toggle visibility of apply button
+        this.autoApplyTilingCheckbox?.addEventListener('change', (e) => {
+            const isAutoApply = e.target.checked;
+            // Hide/show the apply button based on auto-apply setting
+            if (this.applyDynamicTilingBtn) {
+                this.applyDynamicTilingBtn.style.display = isAutoApply ? 'none' : 'inline-flex';
+            }
+            console.log('🔄 Auto-apply tiling:', isAutoApply ? 'enabled' : 'disabled');
+            
+            // If auto-apply is enabled and there are pending changes, apply them now
+            if (isAutoApply) {
+                this.applyDynamicTiling();
+            }
+        });
+        
+        // Initialize auto-apply state (hide apply button by default since auto-apply is on)
+        if (this.autoApplyTilingCheckbox?.checked && this.applyDynamicTilingBtn) {
+            this.applyDynamicTilingBtn.style.display = 'none';
+        }
+        
+        // Material properties reset button
+        this.resetMaterialPropertiesBtn?.addEventListener('click', () => {
+            this.resetMaterialProperties();
+        });
+        
         // Material history controls
         this.clearHistoryBtn?.addEventListener('click', () => this.clearMaterialHistory());
+        
+        // History navigation buttons
+        this.historyPrevBtn?.addEventListener('click', () => this.scrollHistory('left'));
+        this.historyNextBtn?.addEventListener('click', () => this.scrollHistory('right'));
         
         // Mobile capture button
         this.mobileCaptureBtn?.addEventListener('click', () => this.handleCaptureButtonClick());
@@ -1164,7 +1200,8 @@ class LiveNormalApp {
         // Update tiling information display
         this.updateTilingInfoDisplay(materialToDisplay);
         
-        // Show material preview, hide no-material message
+        // Show material workspace and preview, hide no-material message
+        this.materialWorkspace.style.display = 'block';
         this.materialPreview.style.display = 'block';
         this.noMaterial.style.display = 'none';
         
@@ -1716,35 +1753,94 @@ class LiveNormalApp {
     updateHistoryDisplay() {
         if (!this.historyGrid || !this.historyCount) return;
         
-        // Show/hide history section
-        if (this.materialHistoryData.length > 0) {
-            this.materialHistory.style.display = 'block';
-            this.historyCount.textContent = `${this.materialHistoryData.length} material${this.materialHistoryData.length === 1 ? '' : 's'} saved`;
+        const hasHistory = this.materialHistoryData.length > 0;
+        const hasMaterial = this.currentMaterial !== null;
+        
+        // Update display of workspace container
+        if (this.materialWorkspace) {
+            this.materialWorkspace.style.display = (hasHistory || hasMaterial) ? 'block' : 'none';
+        }
+        
+        // Update display of no-material placeholder
+        if (this.noMaterial) {
+            this.noMaterial.style.display = (hasHistory || hasMaterial) ? 'none' : 'block';
+        }
+        
+        // Show/hide history section within workspace
+        if (hasHistory) {
+            this.materialHistory.style.display = 'flex';
+            this.historyCount.textContent = `${this.materialHistoryData.length} saved`;
             
-            // Generate history grid HTML
-            this.historyGrid.innerHTML = this.materialHistoryData.map(item => `
-                <div class="history-item" data-id="${item.id}">
-                    <img src="${item.thumbnail}" alt="${item.name}" class="history-thumbnail">
-                    <div class="history-info">
-                        <div class="history-name">${item.name}</div>
-                        <div class="history-date">${this.formatDate(item.date)}</div>
-                    </div>
-                    <button class="history-delete" onclick="event.stopPropagation(); window.liveNormalApp.removeFromHistory('${item.id}')">
+            // Generate compact history items for horizontal carousel
+            this.historyGrid.innerHTML = this.materialHistoryData.map((item, index) => `
+                <div class="history-item-compact${this.currentMaterial && this.currentMaterial.id === item.id ? ' active' : ''}" data-id="${item.id}" data-index="${index}">
+                    <img src="${item.thumbnail}" alt="${item.name}" class="history-thumbnail" loading="lazy">
+                    <div class="history-name" title="${item.name}">${this.truncateName(item.name, 10)}</div>
+                    <button class="history-delete" onclick="event.stopPropagation(); window.liveNormalApp.removeFromHistory('${item.id}')" title="Delete">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
             `).join('');
             
             // Add click listeners to history items
-            this.historyGrid.querySelectorAll('.history-item').forEach(item => {
+            this.historyGrid.querySelectorAll('.history-item-compact').forEach(item => {
                 item.addEventListener('click', () => {
                     const id = item.dataset.id;
                     this.loadMaterialFromHistory(id);
+                    // Update active state
+                    this.historyGrid.querySelectorAll('.history-item-compact').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
                 });
             });
+            
+            // Update navigation button states
+            this.updateHistoryNavButtons();
         } else {
             this.materialHistory.style.display = 'none';
         }
+    }
+    
+    // Truncate long names for compact display
+    truncateName(name, maxLength) {
+        if (!name) return 'Material';
+        if (name.length <= maxLength) return name;
+        return name.substring(0, maxLength) + '...';
+    }
+    
+    // Scroll history carousel
+    scrollHistory(direction) {
+        if (!this.historyGrid) return;
+        
+        const scrollAmount = 200; // Pixels to scroll
+        const currentScroll = this.historyGrid.scrollLeft;
+        
+        if (direction === 'left') {
+            this.historyGrid.scrollTo({
+                left: currentScroll - scrollAmount,
+                behavior: 'smooth'
+            });
+        } else {
+            this.historyGrid.scrollTo({
+                left: currentScroll + scrollAmount,
+                behavior: 'smooth'
+            });
+        }
+        
+        // Update nav buttons after scroll animation
+        setTimeout(() => this.updateHistoryNavButtons(), 300);
+    }
+    
+    // Update navigation button states based on scroll position
+    updateHistoryNavButtons() {
+        if (!this.historyGrid || !this.historyPrevBtn || !this.historyNextBtn) return;
+        
+        const { scrollLeft, scrollWidth, clientWidth } = this.historyGrid;
+        
+        // Disable prev button at start
+        this.historyPrevBtn.disabled = scrollLeft <= 0;
+        
+        // Disable next button at end
+        this.historyNextBtn.disabled = scrollLeft + clientWidth >= scrollWidth - 5;
     }
     
     loadMaterialFromHistory(id) {
@@ -1753,6 +1849,7 @@ class LiveNormalApp {
         
         // Create material object
         const material = {
+            id: historyItem.id,
             name: historyItem.name,
             date: historyItem.date,
             textures: historyItem.textures
@@ -1761,6 +1858,11 @@ class LiveNormalApp {
         // Load the material
         this.currentMaterial = material;
         this.displayMaterial(material);
+        
+        // Update active state in history bar
+        this.historyGrid?.querySelectorAll('.history-item-compact').forEach(item => {
+            item.classList.toggle('active', item.dataset.id == id);
+        });
         
         // Switch to materials section
         this.showSection('materials');
@@ -1865,7 +1967,35 @@ class LiveNormalApp {
             window.materialViewer3D.updateTilingOffset(offsetX, offsetY);
         }
         
+        // Auto-apply changes if checkbox is enabled
+        if (this.autoApplyTilingCheckbox?.checked) {
+            this.applyDynamicTilingQuiet();
+        }
+        
         console.log('🔧 Dynamic tiling preview updated:', { offsetX, offsetY, blendAmount });
+    }
+    
+    // Quiet version of apply that doesn't show alerts (for auto-apply)
+    applyDynamicTilingQuiet() {
+        if (!this.currentMaterial) {
+            return;
+        }
+        
+        // Get current parameters
+        const offsetX = parseFloat(this.tilingOffsetXSlider?.value || 0);
+        const offsetY = parseFloat(this.tilingOffsetYSlider?.value || 0);
+        const blendAmount = parseFloat(this.tilingBlendAmountSlider?.value || 0.15);
+        
+        // Save the dynamic tiling parameters to the current material
+        this.currentMaterial.dynamicTiling = { offsetX, offsetY, blendAmount };
+        
+        // Update material name to reflect dynamic tiling (if not already indicated)
+        if (!this.currentMaterial.name.includes('_dynamic') && !this.currentMaterial.name.includes('_tiled')) {
+            this.currentMaterial.name = this.currentMaterial.name + '_dynamic_tiled';
+            if (this.materialNameInput) {
+                this.materialNameInput.value = this.currentMaterial.name;
+            }
+        }
     }
     
     resetTilingPosition() {
@@ -1945,6 +2075,67 @@ class LiveNormalApp {
             this.dynamicTilingControls.style.display = 'none';
             console.log('🎛️ Dynamic tiling controls hidden');
         }
+    }
+
+    // Reset Material Properties to defaults
+    resetMaterialProperties() {
+        console.log('🔄 Resetting material properties to defaults...');
+        
+        // Default values
+        const defaults = {
+            roughness: 0.5,
+            metallic: 0.0,
+            normalIntensity: 1.0,
+            aoIntensity: 1.0,
+            displacementScale: 0.1
+        };
+        
+        // Reset Roughness
+        if (this.roughnessSlider) {
+            this.roughnessSlider.value = defaults.roughness;
+            if (this.roughnessValue) {
+                this.roughnessValue.textContent = defaults.roughness.toFixed(2);
+            }
+            window.materialViewer3D?.updateRoughness(defaults.roughness);
+        }
+        
+        // Reset Metallic
+        if (this.metallicSlider) {
+            this.metallicSlider.value = defaults.metallic;
+            if (this.metallicValue) {
+                this.metallicValue.textContent = defaults.metallic.toFixed(2);
+            }
+            window.materialViewer3D?.updateMetalness(defaults.metallic);
+        }
+        
+        // Reset Normal Intensity
+        if (this.normalIntensity) {
+            this.normalIntensity.value = defaults.normalIntensity;
+            if (this.normalValue) {
+                this.normalValue.textContent = defaults.normalIntensity.toFixed(1);
+            }
+            window.materialViewer3D?.updateNormalIntensity(defaults.normalIntensity);
+        }
+        
+        // Reset AO Intensity
+        if (this.aoIntensity) {
+            this.aoIntensity.value = defaults.aoIntensity;
+            if (this.aoValue) {
+                this.aoValue.textContent = defaults.aoIntensity.toFixed(1);
+            }
+            window.materialViewer3D?.updateAOIntensity(defaults.aoIntensity);
+        }
+        
+        // Reset Displacement Scale
+        if (this.displacementScale) {
+            this.displacementScale.value = defaults.displacementScale;
+            if (this.displacementValue) {
+                this.displacementValue.textContent = defaults.displacementScale.toFixed(2);
+            }
+            window.materialViewer3D?.updateDisplacementScale(defaults.displacementScale);
+        }
+        
+        console.log('✅ Material properties reset to defaults');
     }
 
     // Material Name Methods

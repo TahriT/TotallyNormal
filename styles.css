@@ -1085,49 +1085,255 @@ body {
     }
 }
 
-/* 3D Preview Section */
-.preview-3d-section {
-    margin-bottom: var(--spacing-2xl);
+/* Material Workspace Unified Layout */
+.material-workspace {
+    max-width: 1200px;
+    margin: 0 auto;
     background: var(--gradient-surface);
     border-radius: var(--border-radius-large);
-    padding: var(--spacing-xl);
     border: 1px solid var(--border);
-    box-shadow: 0 8px 40px var(--shadow-heavy);
+    box-shadow: 0 12px 50px var(--shadow-heavy);
+    overflow: hidden;
+    animation: fadeIn 0.5s ease;
 }
 
-/* Preview Header with Controls */
-.preview-header {
-    margin-bottom: var(--spacing-lg);
-}
-
-.preview-header h3 {
-    text-align: center;
-    margin-bottom: var(--spacing-md);
-    color: var(--text-primary);
-    font-size: 1.5rem;
-    font-weight: 600;
-}
-
-/* Geometry Controls Above Viewer */
-.geometry-controls-header {
+.workspace-header {
     display: flex;
-    justify-content: center;
-    margin-bottom: var(--spacing-md);
-}
-
-.geometry-controls-header .geometry-toggle {
-    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md) var(--spacing-xl);
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid var(--border);
     flex-wrap: wrap;
+    gap: var(--spacing-lg);
+}
+
+.workspace-identity {
+    flex: 1;
+    min-width: 250px;
+}
+
+.material-name-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.material-name-input-group {
+    display: flex;
+    align-items: center;
     gap: var(--spacing-sm);
+}
+
+.name-icon {
+    color: var(--primary-color);
+    font-size: 1.2rem;
+    opacity: 0.8;
+}
+
+.material-name-input {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--border-radius-small);
+    color: var(--text-primary);
+    font-size: 1.4rem;
+    font-weight: 700;
+    padding: 4px 8px;
+    width: 100%;
+    transition: var(--transition);
+}
+
+.material-name-input:hover, .material-name-input:focus {
+    background: var(--surface-elevated);
+    border-color: var(--border-light);
+    outline: none;
+}
+
+.material-date-text {
+    font-size: 0.75rem;
+    color: var(--text-light);
+    padding-left: 8px;
+}
+
+/* Integrated History in Header */
+.material-history-integrated {
+    flex: 2;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    min-width: 300px;
+}
+
+.history-carousel-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    background: rgba(0, 0, 0, 0.1);
+    padding: 4px;
+    border-radius: 40px;
+    border: 1px solid var(--border);
+}
+
+.history-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.history-count {
+    font-size: 0.7rem;
+    color: var(--text-light);
+    white-space: nowrap;
+}
+
+/* 3D Viewer Section Improvements */
+.material-preview {
+    padding: var(--spacing-xl);
+}
+
+.viewer-container-wrapper {
+    position: relative;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    margin-bottom: var(--spacing-xl);
+    border: 1px solid var(--border-light);
+    background: var(--background-secondary);
+}
+
+.threejs-viewport-large {
+    width: 100%;
+    height: 55vh;
+    min-height: 400px;
+    max-height: 700px;
+    cursor: grab;
+}
+
+.threejs-viewport-large:active {
+    cursor: grabbing;
+}
+
+/* Viewer HUD (Heads-Up Display) */
+.viewer-hud {
+    position: absolute;
+    bottom: var(--spacing-md);
+    left: 50%;
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 10;
+}
+
+.geometry-toggle-hud {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(26, 26, 46, 0.8);
+    backdrop-filter: blur(10px);
+    padding: 6px;
+    border-radius: 50px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    pointer-events: auto;
+}
+
+.hud-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 1.1rem;
 }
 
-.preview-3d-container {
+.hud-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    transform: scale(1.1);
+}
+
+.hud-btn.active {
+    background: var(--primary-color);
+    color: white;
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+}
+
+.hud-divider {
+    width: 1px;
+    height: 24px;
+    background: var(--border-light);
+    margin: 0 4px;
+}
+
+/* Control Panel Grid Adjustments */
+.material-controls-panel {
     display: grid;
-    grid-template-columns: 1fr auto;
-    gap: var(--spacing-lg);
-    align-items: start;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--spacing-xl);
+    background: rgba(255, 255, 255, 0.03);
+    padding: var(--spacing-xl);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border);
+}
+
+@media (max-width: 992px) {
+    .workspace-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .material-history-integrated {
+        order: -1; /* Move history to top on tablet */
+    }
+}
+
+@media (max-width: 768px) {
+    .workspace-header {
+        padding: var(--spacing-md);
+    }
+    
+    .material-name-input {
+        font-size: 1.1rem;
+        text-align: center;
+    }
+    
+    .threejs-viewport-large {
+        height: 40vh;
+        min-height: 300px;
+    }
+    
+    .viewer-hud {
+        bottom: var(--spacing-sm);
+    }
+}
+
+/* Reusing and overriding old history item styles for integration */
+.history-item-compact {
+    width: 60px; /* Even more compact */
+    height: 40px;
+    padding: 0;
+    overflow: hidden;
+    border-width: 1px;
+}
+
+.history-item-compact .history-thumbnail {
+    margin-bottom: 0;
+    height: 100%;
+}
+
+.history-item-compact .history-name {
+    display: none; /* Hide name in header carousel to save space */
+}
+
+/* 3D Preview Section (Old styles kept for reference/cleanup) */
+.preview-3d-section {
+    margin-bottom: var(--spacing-2xl);
 }
 
 .threejs-viewport {
@@ -1176,22 +1382,12 @@ body {
 }
 
 /* Three.js canvas styling */
-.threejs-viewport-large canvas {
-    width: 100% !important;
-    height: 100% !important;
-    display: block;
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-}
-
+.threejs-viewport-large canvas,
 .threejs-viewport canvas {
     width: 100% !important;
     height: 100% !important;
     display: block;
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
+    object-fit: fill; /* Fills the container completely, resolving gaps */
 }
 
 /* Controls Panel Below 3D Viewer */
@@ -1211,6 +1407,23 @@ body {
     gap: var(--spacing-md);
 }
 
+.control-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.control-group-header h4 {
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
 .control-group h4 {
     color: var(--text-primary);
     font-size: 1.1rem;
@@ -1218,6 +1431,39 @@ body {
     margin: 0;
     padding-bottom: var(--spacing-sm);
     border-bottom: 1px solid var(--border-light);
+}
+
+/* Checkbox styling */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    padding: var(--spacing-xs) 0;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+.checkbox-label span {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.checkbox-label:hover {
+    color: var(--text-primary);
+}
+
+.tiling-options {
+    padding: var(--spacing-sm) 0;
+    border-top: 1px solid var(--border-light);
 }
 
 .control-group .geometry-toggle {
@@ -1277,6 +1523,123 @@ body {
     margin-bottom: var(--spacing-2xl);
     padding: 0 var(--spacing-sm);
     box-sizing: border-box;
+}
+
+/* Shared History & Carousel Components */
+.history-nav-btn {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.history-nav-btn:hover:not(:disabled) {
+    background: var(--primary-color);
+    color: white;
+    transform: scale(1.1);
+}
+
+.history-nav-btn:disabled {
+    opacity: 0.2;
+    cursor: not-allowed;
+}
+
+.history-scroll-container {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    flex: 1;
+    padding: 4px 0;
+}
+
+.history-scroll-container::-webkit-scrollbar {
+    display: none;
+}
+
+.history-item-compact {
+    flex-shrink: 0;
+    width: 50px;
+    height: 35px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius-small);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    position: relative;
+    overflow: hidden;
+}
+
+.history-item-compact:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+.history-item-compact.active {
+    border-color: var(--primary-color);
+    border-width: 2px;
+    box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+}
+
+.history-thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.history-name {
+    display: none; /* Hidden in compact header view */
+}
+
+.history-delete {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: rgba(248, 113, 113, 0.9);
+    border: none;
+    border-radius: 0 0 0 4px;
+    width: 16px;
+    height: 16px;
+    color: white;
+    cursor: pointer;
+    opacity: 0;
+    transition: var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.5rem;
+}
+
+.history-item-compact:hover .history-delete {
+    opacity: 1;
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--text-light);
+    padding: 6px;
+    cursor: pointer;
+    border-radius: var(--border-radius-small);
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon:hover {
+    background: rgba(248, 113, 113, 0.1);
+    color: var(--error);
 }
 
 @media (max-width: 1200px) {
@@ -1931,7 +2294,7 @@ body {
 .mb-4 { margin-bottom: var(--spacing-lg) !important; }
 .mb-5 { margin-bottom: var(--spacing-xl) !important; }
 
-/* Material History Styles */
+/* Legacy history grid styles (keep for compatibility) */
 .material-history {
     margin-bottom: var(--spacing-xl);
     background: var(--surface);
