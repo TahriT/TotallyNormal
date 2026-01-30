@@ -1,5 +1,5 @@
 // Service Worker for TotallyNormal
-const APP_VERSION = '1.3.3';
+const APP_VERSION = '1.6.3';
 const CACHE_NAME = `totallynormal-v${APP_VERSION}`;
 const MATERIALS_CACHE = 'totallynormal-materials-v1';
 const EXTERNAL_CACHE = 'totallynormal-external-v1';

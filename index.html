@@ -209,11 +209,9 @@
                         
                         <!-- 3D Preview Section -->
                         <div class="preview-3d-section">
-                            <div class="viewer-container-wrapper">
-                                <!-- 3D Viewer Takes Top Space -->
-                                <div id="threejs-container" class="threejs-viewport-large">
-                                    <!-- Three.js will create canvas here -->
-                                </div>
+                            <!-- 3D Viewer Container (merged from viewer-container-wrapper) -->
+                            <div id="threejs-container" class="threejs-viewport-large">
+                                <!-- Three.js will create canvas here -->
 
                                 <!-- Floating HUD for Geometry Controls -->
                                 <div class="viewer-hud">
@@ -327,10 +325,18 @@
                             <div class="control-group">
                                 <div class="control-group-header">
                                     <h4>Material Properties</h4>
-                                    <button id="resetMaterialPropertiesBtn" class="btn btn-secondary btn-small" title="Reset to defaults">
-                                        <i class="fas fa-undo"></i>
-                                        Reset
-                                    </button>
+                                    <div class="control-group-actions">
+                                        <button id="undoBtn" class="btn-icon" title="Undo (Ctrl+Z)" disabled>
+                                            <i class="fas fa-undo"></i>
+                                        </button>
+                                        <button id="redoBtn" class="btn-icon" title="Redo (Ctrl+Y)" disabled>
+                                            <i class="fas fa-redo"></i>
+                                        </button>
+                                        <button id="resetMaterialPropertiesBtn" class="btn btn-secondary btn-small" title="Reset to defaults">
+                                            <i class="fas fa-sync"></i>
+                                            Reset
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="material-sliders">
                                     <div class="slider-group">
@@ -532,9 +538,29 @@
         <div class="modal-content">
             <div class="loading-spinner"></div>
             <h3>Generating PBR Textures</h3>
-            <p>Processing your image...</p>
+            <p id="loadingStep">Processing your image...</p>
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-steps" id="progressSteps">
+                <div class="step" data-step="1"><span>1</span> Analyzing Image</div>
+                <div class="step" data-step="2"><span>2</span> Generating Maps</div>
+                <div class="step" data-step="3"><span>3</span> Applying Enhancements</div>
+                <div class="step" data-step="4"><span>4</span> Finalizing</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Zoom Overlay -->
+    <div id="imageZoomOverlay" class="image-zoom-overlay" style="display: none;">
+        <div class="zoom-overlay-content">
+            <button class="zoom-close-btn" id="closeZoomBtn">
+                <i class="fas fa-times"></i>
+            </button>
+            <img id="zoomedImage" alt="Zoomed texture">
+            <div class="zoom-info" id="zoomInfo">
+                <h4 id="zoomTitle">Texture Preview</h4>
+                <p id="zoomDescription">Hover to see full size</p>
             </div>
         </div>
     </div>
@@ -618,6 +644,7 @@
         const cacheBustTimestamp = Date.now();
         console.log('📦 Loading scripts with timestamp cache busting:', cacheBustTimestamp);
     </script>
+    <script src="js/undoRedo.js?v=1.6.3" defer></script>
     <script src="js/textureGenerator.js?v=1.6.3" defer></script>
     <script src="js/materialViewer3D.js?v=1.6.3" defer></script>
     <script src="js/app.js?v=1.6.3" defer></script>

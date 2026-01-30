@@ -178,6 +178,17 @@ class MaterialViewer3D {
             metalness: 0.0,
             side: THREE.DoubleSide // Enable double-sided rendering
         });
+        
+        // Fix cube UV mapping to properly wrap textures at edges
+        if (this.cubeGeometry) {
+            const uvs = this.cubeGeometry.attributes.uv.array;
+            for (let i = 0; i < uvs.length; i += 2) {
+                // Ensure UVs wrap properly (0 to 1 range)
+                uvs[i] = uvs[i] % 1;
+                uvs[i + 1] = uvs[i + 1] % 1;
+            }
+            this.cubeGeometry.attributes.uv.needsUpdate = true;
+        }
 
         // Start with plane geometry (default)
         this.mesh = new THREE.Mesh(this.planeGeometry, this.material);

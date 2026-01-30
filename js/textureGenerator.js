@@ -725,7 +725,8 @@ class PBRTextureGenerator {
     generateGaussianKernel(radius) {
         const size = radius * 2 + 1;
         const kernel = new Array(size);
-        const sigma = radius / 3;
+        // Use sigma = radius / 2 for proper Gaussian distribution (was radius / 3 which was too narrow)
+        const sigma = Math.max(1, radius / 2);
         const sigma2 = 2 * sigma * sigma;
         let sum = 0;
         
@@ -847,10 +848,12 @@ class PBRTextureGenerator {
             };
         }
         
-        // Calculate blend width - reduced from 20% to 12% for less aggressive blur
-        const blendWidthRatio = 0.12;
-        const blendWidth = Math.max(12, Math.floor(Math.min(width, height) * blendWidthRatio));
-        const blurRadius = Math.max(2, Math.floor(blendWidth / 5));
+        // Calculate blend width - use 15% for balanced seamless tiling
+        // Too low (e.g., 12%) causes visible seams, too high causes too much blur
+        const blendWidthRatio = 0.15;
+        const blendWidth = Math.max(16, Math.floor(Math.min(width, height) * blendWidthRatio));
+        // Use larger blur radius relative to blend width for smoother transitions
+        const blurRadius = Math.max(4, Math.floor(blendWidth / 3));
         
         console.log('🔧 Gaussian seamless tiling parameters:', { 
             blendWidth, 
@@ -880,101 +883,211 @@ class PBRTextureGenerator {
     
     // Gaussian blur-based seamless tiling with cross-fade blending - Optimized for base image preservation
     gaussianSeamlessBlend(data, width, height, blendWidth, blurRadius) {
-        console.log(`🔄 Creating seamless tiling with improved cross-fade (${blendWidth}px blend zone)...`);
+        console.log(`🔄 Creating seamless tiling with edge-to-edge blending (${blendWidth}px blend zone)...`);
         
         const originalData = new Uint8ClampedArray(data);
-        const shiftedData = new Uint8ClampedArray(data.length);
         
-        // Half-shift version (offset by 50%) - this moves boundary seams to the center
-        const halfWidth = Math.floor(width / 2);
-        const halfHeight = Math.floor(height / 2);
+        // STEP 1: Create wrap-around blended version
+        // For each edge pixel, blend with the corresponding opposite edge pixel
+        const wrapBlendedData = this.createWrapAroundBlend(originalData, width, height, blendWidth);
         
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const srcX = (x + halfWidth) % width;
-                const srcY = (y + halfHeight) % height;
-                const srcIdx = (srcY * width + srcX) * 4;
-                const dstIdx = (y * width + x) * 4;
-                
-                shiftedData[dstIdx] = originalData[srcIdx];
-                shiftedData[dstIdx + 1] = originalData[srcIdx + 1];
-                shiftedData[dstIdx + 2] = originalData[srcIdx + 2];
-                shiftedData[dstIdx + 3] = originalData[srcIdx + 3];
-            }
-        }
+        // STEP 2: Apply Gaussian blur to the wrap-blended edges for smoother transitions
+        const blurredData = this.applyGaussianBlur(wrapBlendedData, width, height, blurRadius);
         
-        // APPLY BLUR ONLY TO THE SEAM AREAS to maintain texture detail in the center
-        // We still need the blurred versions to hide the seam lines, 
-        // but we'll blend them more intelligently.
-        const blurredShifted = this.applyGaussianBlur(shiftedData, width, height, blurRadius);
-        
-        // Calculate the blend ratio based on the requested blendWidth
-        // We want a flat center to preserve the original image data
-        const blendRatioX = blendWidth / halfWidth;
-        const blendRatioY = blendWidth / halfHeight;
-        
+        // STEP 3: Blend the blurred edges back into the original, preserving center detail
         const result = new Uint8ClampedArray(data.length);
         
         for (let y = 0; y < height; y++) {
-            const dy = Math.abs(y - halfHeight) / halfHeight; // 0 at center, 1 at edges
-            let maskY;
-            if (dy < (1 - blendRatioY)) {
-                maskY = 1.0;
-            } else {
-                // Smooth transition at the edges
-                const localDist = (1 - dy) / blendRatioY;
-                maskY = 0.5 * (1 - Math.cos(Math.PI * localDist));
-            }
-
             for (let x = 0; x < width; x++) {
                 const idx = (y * width + x) * 4;
-                const dx = Math.abs(x - halfWidth) / halfWidth;
                 
-                let maskX;
-                if (dx < (1 - blendRatioX)) {
-                    maskX = 1.0;
-                } else {
-                    const localDist = (1 - dx) / blendRatioX;
-                    maskX = 0.5 * (1 - Math.cos(Math.PI * localDist));
-                }
+                // Calculate distance from each edge (0 = at edge, 1 = at center)
+                const distFromLeft = x / blendWidth;
+                const distFromRight = (width - 1 - x) / blendWidth;
+                const distFromTop = y / blendWidth;
+                const distFromBottom = (height - 1 - y) / blendWidth;
                 
-                // Combine masks - use Math.min for a rectangular blend zone 
-                // instead of a diamond (Math.product)
-                const blendFactor = Math.min(maskX, maskY);
+                // Calculate blend factor: 1 = use original, 0 = use blurred wrap-blend
+                const edgeFactorX = Math.min(1, Math.min(distFromLeft, distFromRight));
+                const edgeFactorY = Math.min(1, Math.min(distFromTop, distFromBottom));
                 
-                // In the center (blendFactor closer to 1), use originalData (high detail)
-                // Near edges (blendFactor closer to 0), use blurredShifted (to hide original seams)
+                // Use smooth cosine interpolation for the blend
+                const smoothX = edgeFactorX < 1 ? 0.5 * (1 - Math.cos(Math.PI * edgeFactorX)) : 1;
+                const smoothY = edgeFactorY < 1 ? 0.5 * (1 - Math.cos(Math.PI * edgeFactorY)) : 1;
+                
+                // Combine: minimum gives rectangular blend zones at edges
+                const blendFactor = Math.min(smoothX, smoothY);
+                
                 for (let c = 0; c < 4; c++) {
-                    const originalValue = originalData[idx + c];
-                    const shiftedValue = blurredShifted[idx + c];
-                    
                     result[idx + c] = Math.round(
-                        originalValue * blendFactor + 
-                        shiftedValue * (1 - blendFactor)
+                        originalData[idx + c] * blendFactor + 
+                        blurredData[idx + c] * (1 - blendFactor)
                     );
                 }
             }
         }
         
-        // Final edge refinement
+        // STEP 4: Final edge refinement to ensure pixel-perfect seams
         this.refineSeamEdges(result, width, height, blurRadius);
         
         return result;
     }
     
+    // Create wrap-around blend: blend each edge with its opposite edge
+    createWrapAroundBlend(data, width, height, blendWidth) {
+        console.log(`🔀 Creating wrap-around edge blend (${blendWidth}px zones)...`);
+        
+        const result = new Uint8ClampedArray(data);
+        
+        // Blend left edge with right edge (and vice versa)
+        for (let y = 0; y < height; y++) {
+            for (let offset = 0; offset < blendWidth; offset++) {
+                // Blend weight: 1 at edge, 0 at blendWidth distance from edge
+                const weight = 1 - (offset / blendWidth);
+                // Smooth the weight with cosine interpolation
+                const smoothWeight = 0.5 * (1 + Math.cos(Math.PI * (1 - weight)));
+                
+                // Left side pixel blends with corresponding right side pixel
+                const leftX = offset;
+                const rightX = width - 1 - offset;
+                
+                const leftIdx = (y * width + leftX) * 4;
+                const rightIdx = (y * width + rightX) * 4;
+                
+                // Get the opposite edge pixels (wrap-around)
+                const leftOppositeIdx = (y * width + (width - 1 - offset)) * 4; // Right edge
+                const rightOppositeIdx = (y * width + offset) * 4; // Left edge
+                
+                for (let c = 0; c < 3; c++) {
+                    // Blend left edge pixel toward right edge pixel
+                    const leftOriginal = data[leftIdx + c];
+                    const leftTarget = data[leftOppositeIdx + c];
+                    result[leftIdx + c] = Math.round(leftOriginal * (1 - smoothWeight) + leftTarget * smoothWeight);
+                    
+                    // Blend right edge pixel toward left edge pixel
+                    const rightOriginal = data[rightIdx + c];
+                    const rightTarget = data[rightOppositeIdx + c];
+                    result[rightIdx + c] = Math.round(rightOriginal * (1 - smoothWeight) + rightTarget * smoothWeight);
+                }
+            }
+        }
+        
+        // Blend top edge with bottom edge (and vice versa)
+        for (let x = 0; x < width; x++) {
+            for (let offset = 0; offset < blendWidth; offset++) {
+                const weight = 1 - (offset / blendWidth);
+                const smoothWeight = 0.5 * (1 + Math.cos(Math.PI * (1 - weight)));
+                
+                const topY = offset;
+                const bottomY = height - 1 - offset;
+                
+                const topIdx = (topY * width + x) * 4;
+                const bottomIdx = (bottomY * width + x) * 4;
+                
+                // Get the opposite edge pixels (wrap-around)
+                const topOppositeIdx = ((height - 1 - offset) * width + x) * 4; // Bottom edge
+                const bottomOppositeIdx = (offset * width + x) * 4; // Top edge
+                
+                for (let c = 0; c < 3; c++) {
+                    // Average with the existing horizontal blend
+                    const topCurrent = result[topIdx + c];
+                    const topTarget = data[topOppositeIdx + c];
+                    result[topIdx + c] = Math.round((topCurrent + topTarget * smoothWeight) / (1 + smoothWeight));
+                    
+                    const bottomCurrent = result[bottomIdx + c];
+                    const bottomTarget = data[bottomOppositeIdx + c];
+                    result[bottomIdx + c] = Math.round((bottomCurrent + bottomTarget * smoothWeight) / (1 + smoothWeight));
+                }
+            }
+        }
+        
+        // Handle corners specially - blend all four corners together
+        this.blendCorners(result, data, width, height, blendWidth);
+        
+        return result;
+    }
+    
+    // Blend corners for seamless diagonal tiling
+    blendCorners(result, originalData, width, height, blendWidth) {
+        console.log('🔲 Blending corners for seamless diagonal transitions...');
+        
+        const cornerSize = Math.min(blendWidth, Math.floor(Math.min(width, height) * 0.15));
+        
+        // For each corner pixel, blend with all 4 corner regions
+        for (let offsetY = 0; offsetY < cornerSize; offsetY++) {
+            for (let offsetX = 0; offsetX < cornerSize; offsetX++) {
+                // Calculate blend weight based on distance from corner
+                const distFromCorner = Math.sqrt(offsetX * offsetX + offsetY * offsetY) / (cornerSize * Math.SQRT2);
+                if (distFromCorner > 1) continue;
+                
+                const weight = 0.5 * (1 + Math.cos(Math.PI * distFromCorner));
+                
+                // Get all 4 corner pixel indices
+                const topLeftIdx = (offsetY * width + offsetX) * 4;
+                const topRightIdx = (offsetY * width + (width - 1 - offsetX)) * 4;
+                const bottomLeftIdx = ((height - 1 - offsetY) * width + offsetX) * 4;
+                const bottomRightIdx = ((height - 1 - offsetY) * width + (width - 1 - offsetX)) * 4;
+                
+                // Calculate average color of all 4 corresponding corner pixels
+                for (let c = 0; c < 3; c++) {
+                    const avgColor = Math.round((
+                        originalData[topLeftIdx + c] + 
+                        originalData[topRightIdx + c] + 
+                        originalData[bottomLeftIdx + c] + 
+                        originalData[bottomRightIdx + c]
+                    ) / 4);
+                    
+                    // Blend each corner toward the average
+                    result[topLeftIdx + c] = Math.round(result[topLeftIdx + c] * (1 - weight) + avgColor * weight);
+                    result[topRightIdx + c] = Math.round(result[topRightIdx + c] * (1 - weight) + avgColor * weight);
+                    result[bottomLeftIdx + c] = Math.round(result[bottomLeftIdx + c] * (1 - weight) + avgColor * weight);
+                    result[bottomRightIdx + c] = Math.round(result[bottomRightIdx + c] * (1 - weight) + avgColor * weight);
+                }
+            }
+        }
+    }
+    
     // Refine edges to ensure perfect seamless matching
     refineSeamEdges(data, width, height, blurRadius) {
-        console.log('🎯 Refining seam edges for perfect matching...');
+        console.log('🎯 Refining seam edges for perfect pixel matching...');
         
-        const refinementWidth = Math.min(blurRadius * 2, Math.floor(Math.min(width, height) * 0.05));
+        const refinementWidth = Math.min(blurRadius * 2, Math.floor(Math.min(width, height) * 0.08));
         
-        // Average left/right edges
+        // STEP 1: Force exact edge pixel matching (offset = 0)
+        // Left and right edge pixels must be identical for seamless horizontal tiling
         for (let y = 0; y < height; y++) {
-            for (let offset = 0; offset < refinementWidth; offset++) {
+            const leftIdx = (y * width + 0) * 4;
+            const rightIdx = (y * width + (width - 1)) * 4;
+            
+            for (let c = 0; c < 3; c++) {
+                const avg = Math.round((data[leftIdx + c] + data[rightIdx + c]) / 2);
+                data[leftIdx + c] = avg;
+                data[rightIdx + c] = avg;
+            }
+        }
+        
+        // Top and bottom edge pixels must be identical for seamless vertical tiling
+        for (let x = 0; x < width; x++) {
+            const topIdx = (0 * width + x) * 4;
+            const bottomIdx = ((height - 1) * width + x) * 4;
+            
+            for (let c = 0; c < 3; c++) {
+                const avg = Math.round((data[topIdx + c] + data[bottomIdx + c]) / 2);
+                data[topIdx + c] = avg;
+                data[bottomIdx + c] = avg;
+            }
+        }
+        
+        // STEP 2: Gradually blend inward from edges for smooth transition
+        // Left/right edge gradient blend
+        for (let y = 0; y < height; y++) {
+            for (let offset = 1; offset < refinementWidth; offset++) {
                 const leftIdx = (y * width + offset) * 4;
                 const rightIdx = (y * width + (width - 1 - offset)) * 4;
                 
-                const blendWeight = 1 - (offset / refinementWidth);
+                // Smoother falloff using cosine
+                const t = offset / refinementWidth;
+                const blendWeight = 0.5 * (1 + Math.cos(Math.PI * t)); // 1 at edge, 0 at refinementWidth
                 
                 for (let c = 0; c < 3; c++) {
                     const avg = Math.round((data[leftIdx + c] + data[rightIdx + c]) / 2);
@@ -984,13 +1097,14 @@ class PBRTextureGenerator {
             }
         }
         
-        // Average top/bottom edges
+        // Top/bottom edge gradient blend
         for (let x = 0; x < width; x++) {
-            for (let offset = 0; offset < refinementWidth; offset++) {
+            for (let offset = 1; offset < refinementWidth; offset++) {
                 const topIdx = (offset * width + x) * 4;
                 const bottomIdx = ((height - 1 - offset) * width + x) * 4;
                 
-                const blendWeight = 1 - (offset / refinementWidth);
+                const t = offset / refinementWidth;
+                const blendWeight = 0.5 * (1 + Math.cos(Math.PI * t));
                 
                 for (let c = 0; c < 3; c++) {
                     const avg = Math.round((data[topIdx + c] + data[bottomIdx + c]) / 2);
@@ -1000,7 +1114,7 @@ class PBRTextureGenerator {
             }
         }
         
-        console.log('✅ Seam edges refined for seamless wrapping');
+        console.log('✅ Seam edges refined with pixel-perfect matching');
     }
     
     // Legacy method for backward compatibility - now uses Gaussian approach

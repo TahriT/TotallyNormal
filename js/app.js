@@ -7,6 +7,10 @@ class LiveNormalApp {
         this.currentMaterial = null;
         this.version = null;
         
+        // Initialize Undo/Redo Manager
+        this.undoRedoManager = null;
+        this.currentState = null;
+        
         this.init();
     }
 
@@ -14,6 +18,7 @@ class LiveNormalApp {
         await this.loadVersion();
         this.setupElements();
         this.setupEventListeners();
+        this.setupKeyboardShortcuts();
         this.showSection('capture');
         this.displayVersionInfo();
         this.updateHistoryDisplay();
@@ -95,6 +100,20 @@ class LiveNormalApp {
             roughness: document.getElementById('roughnessPreview')
         };
         
+        // Add click handlers to texture images for zoom
+        Object.entries(this.textureElements).forEach(([type, img]) => {
+            if (img) {
+                img.style.cursor = 'pointer';
+                img.addEventListener('click', () => {
+                    if (img.src && img.src.startsWith('data:image/')) {
+                        const title = type.charAt(0).toUpperCase() + type.slice(1) + ' Texture';
+                        const description = `Click outside or press ESC to close`;
+                        this.showImageZoom(img.src, title, description);
+                    }
+                });
+            }
+        });
+        
         // Download buttons
         this.downloadButtons = document.querySelectorAll('.download-btn');
         
@@ -155,6 +174,21 @@ class LiveNormalApp {
         // Material properties reset button
         this.resetMaterialPropertiesBtn = document.getElementById('resetMaterialPropertiesBtn');
         
+        // Undo/Redo buttons
+        this.undoBtn = document.getElementById('undoBtn');
+        this.redoBtn = document.getElementById('redoBtn');
+        
+        // Image zoom overlay elements
+        this.imageZoomOverlay = document.getElementById('imageZoomOverlay');
+        this.zoomedImage = document.getElementById('zoomedImage');
+        this.zoomTitle = document.getElementById('zoomTitle');
+        this.zoomDescription = document.getElementById('zoomDescription');
+        this.closeZoomBtn = document.getElementById('closeZoomBtn');
+        
+        // Loading progress elements
+        this.loadingStep = document.getElementById('loadingStep');
+        this.progressSteps = document.getElementById('progressSteps');
+        
         // Debug: Check if X slider was found
         console.log('🔍 X slider element found:', !!this.tilingOffsetXSlider);
         console.log('🔍 Y slider element found:', !!this.tilingOffsetYSlider);
@@ -175,6 +209,29 @@ class LiveNormalApp {
         // PWA-related state
         this.deferredPrompt = null;
         this.isOffline = !navigator.onLine;
+        
+        // Initialize Undo/Redo Manager
+        this.undoRedoManager = new UndoRedoManager();
+        
+        // Set up undo/redo button handlers
+        if (this.undoBtn) {
+            this.undoBtn.addEventListener('click', () => this.handleUndo());
+        }
+        if (this.redoBtn) {
+            this.redoBtn.addEventListener('click', () => this.handleRedo());
+        }
+        
+        // Set up image zoom overlay handlers
+        if (this.closeZoomBtn) {
+            this.closeZoomBtn.addEventListener('click', () => this.closeImageZoom());
+        }
+        if (this.imageZoomOverlay) {
+            this.imageZoomOverlay.addEventListener('click', (e) => {
+                if (e.target === this.imageZoomOverlay) {
+                    this.closeImageZoom();
+                }
+            });
+        }
         
         // Initialize PWA features
         this.initializePWA();
@@ -499,6 +556,52 @@ class LiveNormalApp {
         console.log('🔍 Tiling zoom controls initialized in material viewer');
     }
 
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Escape key - close modals and overlays
+            if (e.key === 'Escape') {
+                this.closeImageZoom();
+                this.hideModal('errorModal');
+                return;
+            }
+            
+            // Don't trigger shortcuts when typing in input fields
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+            
+            // Ctrl/Cmd + Z - Undo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                this.handleUndo();
+                return;
+            }
+            
+            // Ctrl/Cmd + Y or Ctrl/Cmd + Shift + Z - Redo
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                this.handleRedo();
+                return;
+            }
+            
+            // Ctrl/Cmd + S - Download current material
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                if (this.currentMaterial) {
+                    this.downloadAllTextures();
+                }
+                return;
+            }
+            
+            // Space - Capture photo (when camera is active)
+            if (e.code === 'Space' && this.isVideoActive()) {
+                e.preventDefault();
+                this.capturePhoto();
+                return;
+            }
+        });
+    }
+    
     setupEventListeners() {
         // Navigation
         this.navButtons.forEach(btn => {
@@ -553,10 +656,20 @@ class LiveNormalApp {
             if (this.roughnessValue) this.roughnessValue.textContent = value.toFixed(2);
         });
         
+        this.roughnessSlider?.addEventListener('change', () => {
+            const state = this.getCurrentMaterialState();
+            this.undoRedoManager.saveState(state, 'Adjust Roughness');
+        });
+        
         this.metallicSlider?.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
             window.materialViewer3D?.updateMetalness(value);
             if (this.metallicValue) this.metallicValue.textContent = value.toFixed(2);
+        });
+        
+        this.metallicSlider?.addEventListener('change', () => {
+            const state = this.getCurrentMaterialState();
+            this.undoRedoManager.saveState(state, 'Adjust Metallic');
         });
         
         this.normalIntensity?.addEventListener('input', (e) => {
@@ -565,16 +678,31 @@ class LiveNormalApp {
             if (this.normalValue) this.normalValue.textContent = value.toFixed(1);
         });
         
+        this.normalIntensity?.addEventListener('change', () => {
+            const state = this.getCurrentMaterialState();
+            this.undoRedoManager.saveState(state, 'Adjust Normal');
+        });
+        
         this.aoIntensity?.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
             window.materialViewer3D?.updateAOIntensity(value);
             if (this.aoValue) this.aoValue.textContent = value.toFixed(1);
         });
         
+        this.aoIntensity?.addEventListener('change', () => {
+            const state = this.getCurrentMaterialState();
+            this.undoRedoManager.saveState(state, 'Adjust AO');
+        });
+        
         this.displacementScale?.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
             window.materialViewer3D?.updateDisplacementScale(value);
             if (this.displacementValue) this.displacementValue.textContent = value.toFixed(2);
+        });
+        
+        this.displacementScale?.addEventListener('change', () => {
+            const state = this.getCurrentMaterialState();
+            this.undoRedoManager.saveState(state, 'Adjust Displacement');
         });
         
         // Geometry toggle buttons
@@ -684,6 +812,11 @@ class LiveNormalApp {
             this.updateDynamicTilingPreview();
         });
         
+        this.tilingBlendAmountSlider?.addEventListener('change', () => {
+            const state = this.getCurrentMaterialState();
+            this.undoRedoManager.saveState(state, 'Adjust Blend Amount');
+        });
+        
         this.resetTilingBtn?.addEventListener('click', () => {
             this.resetTilingPosition();
         });
@@ -738,14 +871,6 @@ class LiveNormalApp {
         this.errorModal.addEventListener('click', (e) => {
             if (e.target === this.errorModal) {
                 this.hideModal('errorModal');
-            }
-        });
-        
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' && this.isVideoActive()) {
-                e.preventDefault();
-                this.capturePhoto();
             }
         });
     }
@@ -1063,6 +1188,7 @@ class LiveNormalApp {
         try {
             this.showModal('loadingModal');
             this.updateProgress(0);
+            this.updateLoadingStep(1); // Step 1: Processing image
             
             // Get selected resolution, edge detection algorithm, and tiling setting
             const selectedResolution = parseInt(this.resolutionSelect?.value || '512');
@@ -1078,13 +1204,19 @@ class LiveNormalApp {
                 try {
                     // Generate PBR textures with progress updates and selected resolution
                     this.updateProgress(20);
+                    this.updateLoadingStep(2); // Step 2: Generating albedo and normal maps
                     await this.delay(100); // Small delay for UI update
                     
                     console.log('🚀 Starting texture generation...');
                     const result = await window.textureGenerator.generatePBRTextures(img, selectedResolution, selectedEdgeDetection, enableTiling);
                     console.log('✅ Texture generation completed:', result);
                     
+                    this.updateProgress(60);
+                    this.updateLoadingStep(3); // Step 3: Creating height and AO maps
+                    await this.delay(100);
+                    
                     this.updateProgress(90);
+                    this.updateLoadingStep(4); // Step 4: Finalizing textures
                     await this.delay(100);
                     
                     // Store current material with new structure
@@ -1166,6 +1298,12 @@ class LiveNormalApp {
             this.currentMaterial = material;
             if (addToHistory) {
                 this.addToMaterialHistory(material);
+            }
+            
+            // Save initial state for undo/redo
+            const initialState = this.getCurrentMaterialState();
+            if (initialState) {
+                this.undoRedoManager.saveState(initialState, 'Load Material');
             }
         }
         
@@ -1480,7 +1618,39 @@ class LiveNormalApp {
         document.body.style.overflow = '';
         if (modalId === 'loadingModal') {
             this.updateProgress(0);
+            this.updateLoadingStep(1); // Reset to first step
         }
+    }
+    
+    updateLoadingStep(stepNumber, description = null) {
+        if (!this.loadingStep || !this.progressSteps) return;
+        
+        const stepDescriptions = {
+            1: 'Processing image...',
+            2: 'Generating albedo and normal maps...',
+            3: 'Creating height and AO maps...',
+            4: 'Finalizing textures...'
+        };
+        
+        // Update step description
+        if (description) {
+            this.loadingStep.textContent = description;
+        } else if (stepDescriptions[stepNumber]) {
+            this.loadingStep.textContent = stepDescriptions[stepNumber];
+        }
+        
+        // Update step indicators
+        const stepElements = this.progressSteps.querySelectorAll('.step');
+        stepElements.forEach((step, index) => {
+            const stepNum = index + 1;
+            step.classList.remove('active', 'completed');
+            
+            if (stepNum < stepNumber) {
+                step.classList.add('completed');
+            } else if (stepNum === stepNumber) {
+                step.classList.add('active');
+            }
+        });
     }
 
     showError(message) {
@@ -1900,6 +2070,9 @@ class LiveNormalApp {
             return;
         }
 
+        // Save state before applying tiling
+        const stateBefore = this.getCurrentMaterialState();
+
         try {
             console.log('🔄 Starting tiling application to current material...');
             
@@ -1938,6 +2111,11 @@ class LiveNormalApp {
             
             // Show dynamic tiling controls after successful tiling
             this.showDynamicTilingControls();
+            
+            // Save state after successful tiling
+            if (stateBefore) {
+                this.undoRedoManager.saveState(stateBefore, 'Apply Seamless Tiling');
+            }
             
             console.log('✅ Tiling applied successfully to all textures');
             
@@ -2035,6 +2213,9 @@ class LiveNormalApp {
             return;
         }
         
+        // Save state before applying dynamic tiling
+        const stateBefore = this.getCurrentMaterialState();
+        
         try {
             console.log('� Saving dynamic tiling parameters...');
             
@@ -2052,6 +2233,11 @@ class LiveNormalApp {
                 if (this.materialNameInput) {
                     this.materialNameInput.value = this.currentMaterial.name;
                 }
+            }
+            
+            // Save state after successful dynamic tiling
+            if (stateBefore) {
+                this.undoRedoManager.saveState(stateBefore, 'Apply Dynamic Tiling');
             }
             
             console.log('✅ Dynamic tiling parameters saved:', { offsetX, offsetY, blendAmount });
@@ -2136,6 +2322,157 @@ class LiveNormalApp {
         }
         
         console.log('✅ Material properties reset to defaults');
+    }
+    
+    // Undo/Redo Methods
+    getCurrentMaterialState() {
+        if (!this.currentMaterial) return null;
+        
+        return {
+            roughness: parseFloat(this.roughnessSlider?.value || 0.5),
+            metallic: parseFloat(this.metallicSlider?.value || 0.0),
+            normalIntensity: parseFloat(this.normalIntensity?.value || 1.0),
+            aoIntensity: parseFloat(this.aoIntensity?.value || 1.0),
+            displacementScale: parseFloat(this.displacementScale?.value || 0.1),
+            tilingOffsetX: parseFloat(this.tilingOffsetXSlider?.value || 0),
+            tilingOffsetY: parseFloat(this.tilingOffsetYSlider?.value || 0),
+            tilingBlendAmount: parseFloat(this.tilingBlendAmountSlider?.value || 0.5),
+            timestamp: Date.now()
+        };
+    }
+    
+    restoreMaterialState(state) {
+        if (!state || !this.currentMaterial) return;
+        
+        // Restore Roughness
+        if (this.roughnessSlider && state.roughness !== undefined) {
+            this.roughnessSlider.value = state.roughness;
+            if (this.roughnessValue) {
+                this.roughnessValue.textContent = state.roughness.toFixed(2);
+            }
+            window.materialViewer3D?.updateRoughness(state.roughness);
+        }
+        
+        // Restore Metallic
+        if (this.metallicSlider && state.metallic !== undefined) {
+            this.metallicSlider.value = state.metallic;
+            if (this.metallicValue) {
+                this.metallicValue.textContent = state.metallic.toFixed(2);
+            }
+            window.materialViewer3D?.updateMetalness(state.metallic);
+        }
+        
+        // Restore Normal Intensity
+        if (this.normalIntensity && state.normalIntensity !== undefined) {
+            this.normalIntensity.value = state.normalIntensity;
+            if (this.normalValue) {
+                this.normalValue.textContent = state.normalIntensity.toFixed(1);
+            }
+            window.materialViewer3D?.updateNormalIntensity(state.normalIntensity);
+        }
+        
+        // Restore AO Intensity
+        if (this.aoIntensity && state.aoIntensity !== undefined) {
+            this.aoIntensity.value = state.aoIntensity;
+            if (this.aoValue) {
+                this.aoValue.textContent = state.aoIntensity.toFixed(1);
+            }
+            window.materialViewer3D?.updateAOIntensity(state.aoIntensity);
+        }
+        
+        // Restore Displacement Scale
+        if (this.displacementScale && state.displacementScale !== undefined) {
+            this.displacementScale.value = state.displacementScale;
+            if (this.displacementValue) {
+                this.displacementValue.textContent = state.displacementScale.toFixed(2);
+            }
+            window.materialViewer3D?.updateDisplacementScale(state.displacementScale);
+        }
+        
+        // Restore Tiling properties
+        if (this.tilingOffsetXSlider && state.tilingOffsetX !== undefined) {
+            this.tilingOffsetXSlider.value = state.tilingOffsetX;
+            if (this.tilingOffsetXValue) {
+                this.tilingOffsetXValue.textContent = state.tilingOffsetX.toFixed(2);
+            }
+            if (this.tilingOffsetXInput) {
+                this.tilingOffsetXInput.value = state.tilingOffsetX.toFixed(2);
+            }
+        }
+        
+        if (this.tilingOffsetYSlider && state.tilingOffsetY !== undefined) {
+            this.tilingOffsetYSlider.value = state.tilingOffsetY;
+            if (this.tilingOffsetYValue) {
+                this.tilingOffsetYValue.textContent = state.tilingOffsetY.toFixed(2);
+            }
+            if (this.tilingOffsetYInput) {
+                this.tilingOffsetYInput.value = state.tilingOffsetY.toFixed(2);
+            }
+        }
+        
+        if (this.tilingBlendAmountSlider && state.tilingBlendAmount !== undefined) {
+            this.tilingBlendAmountSlider.value = state.tilingBlendAmount;
+            if (this.tilingBlendValue) {
+                this.tilingBlendValue.textContent = Math.round(state.tilingBlendAmount * 100) + '%';
+            }
+        }
+        
+        // Update dynamic tiling preview if needed
+        this.updateDynamicTilingPreview();
+        
+        console.log('↩️ Material state restored');
+    }
+    
+    handleUndo() {
+        if (!this.undoRedoManager.canUndo()) {
+            console.log('↩️ Nothing to undo');
+            return;
+        }
+        
+        const previousState = this.undoRedoManager.undo();
+        if (previousState) {
+            this.restoreMaterialState(previousState);
+            console.log('↩️ Undo applied');
+        }
+    }
+    
+    handleRedo() {
+        if (!this.undoRedoManager.canRedo()) {
+            console.log('↪️ Nothing to redo');
+            return;
+        }
+        
+        const nextState = this.undoRedoManager.redo();
+        if (nextState) {
+            this.restoreMaterialState(nextState);
+            console.log('↪️ Redo applied');
+        }
+    }
+    
+    // Image Zoom Methods
+    showImageZoom(imageUrl, title, description) {
+        if (!this.imageZoomOverlay || !this.zoomedImage) return;
+        
+        this.zoomedImage.src = imageUrl;
+        this.zoomTitle.textContent = title || 'Texture Preview';
+        this.zoomDescription.textContent = description || '';
+        
+        this.imageZoomOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden'; // Prevent scrolling
+    }
+    
+    closeImageZoom() {
+        if (!this.imageZoomOverlay) return;
+        
+        this.imageZoomOverlay.classList.remove('active');
+        document.body.style.overflow = ''; // Restore scrolling
+        
+        // Clear image source after animation
+        setTimeout(() => {
+            if (this.zoomedImage) {
+                this.zoomedImage.src = '';
+            }
+        }, 300);
     }
 
     // Material Name Methods

@@ -1193,7 +1193,8 @@ body {
     padding: var(--spacing-md); /* Reduced from xl */
 }
 
-.viewer-container-wrapper {
+/* threejs-viewport-large is now the main container (previously viewer-container-wrapper) */
+.threejs-viewport-large {
     position: relative;
     width: 100%;
     height: 60vh;
@@ -1201,17 +1202,11 @@ body {
     max-height: 750px;
     border-radius: var(--border-radius);
     overflow: hidden;
-    margin-bottom: var(--spacing-md); /* Reduced from xl */
+    margin-bottom: var(--spacing-md);
     border: 1px solid var(--border-light);
     background: var(--background-secondary);
     box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
-}
-
-.threejs-viewport-large {
-    width: 100%;
-    height: 100%;
     cursor: grab;
-    position: relative; /* Ensure it's positioned for any children */
 }
 
 .threejs-viewport-large:active {
@@ -1934,19 +1929,12 @@ body {
     }
     
     /* 3D Preview responsive - New Layout */
-    /* Target wrapper for size adjustments */
-    .viewer-container-wrapper {
-        height: 50vh; /* Smaller on mobile */
+    .threejs-viewport-large {
+        /* Mobile size adjustments */
+        height: 50vh;
         min-height: 300px;
         max-height: 500px; /* Prevent overflow on small screens */
-    }
-
-    .threejs-viewport-large {
-        /* Reset any legacy mobile styles */
         width: 100%;
-        height: 100%;
-        max-width: none;
-        max-height: none;
     }
     
     .threejs-viewport-large canvas {
@@ -2955,5 +2943,262 @@ body {
         flex: 1;
         justify-content: center;
         min-width: 140px;
+    }
+}
+
+/* ===== NEW FEATURES: Undo/Redo, Loading Progress, Image Zoom ===== */
+
+/* Control Group Actions (for undo/redo buttons) */
+.control-group-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+}
+
+.btn-icon {
+    background: none;
+    border: 2px solid var(--border-light);
+    color: var(--text-primary);
+    width: 36px;
+    height: 36px;
+    border-radius: var(--border-radius-small);
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+}
+
+.btn-icon:hover:not(:disabled) {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: rgba(0, 212, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+.btn-icon:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn-icon:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Enhanced Loading Modal with Steps */
+.progress-steps {
+    display: flex;
+    justify-content: space-between;
+    margin-top: var(--spacing-lg);
+    gap: var(--spacing-sm);
+}
+
+.progress-steps .step {
+    flex: 1;
+    text-align: center;
+    padding: var(--spacing-sm);
+    border-radius: var(--border-radius-small);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    opacity: 0.5;
+    transition: var(--transition);
+    font-size: 0.75rem;
+}
+
+.progress-steps .step span {
+    display: block;
+    width: 24px;
+    height: 24px;
+    background: var(--border);
+    color: var(--text-secondary);
+    border-radius: 50%;
+    margin: 0 auto var(--spacing-xs);
+    line-height: 24px;
+    font-weight: 600;
+    transition: var(--transition);
+}
+
+.progress-steps .step.active {
+    opacity: 1;
+    border-color: var(--primary-color);
+    background: rgba(0, 212, 255, 0.1);
+}
+
+.progress-steps .step.active span {
+    background: var(--gradient-primary);
+    color: white;
+}
+
+.progress-steps .step.completed {
+    opacity: 0.7;
+    border-color: var(--success);
+}
+
+.progress-steps .step.completed span {
+    background: var(--success);
+    color: white;
+}
+
+#loadingStep {
+    margin: var(--spacing-md) 0;
+    font-weight: 500;
+    color: var(--primary-color);
+}
+
+/* Image Zoom Overlay */
+.image-zoom-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.95);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.image-zoom-overlay.show {
+    opacity: 1;
+}
+
+.zoom-overlay-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: zoomIn 0.3s ease-out;
+}
+
+@keyframes zoomIn {
+    from {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.zoom-close-btn {
+    position: absolute;
+    top: -50px;
+    right: 0;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+
+.zoom-close-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: var(--primary-color);
+    transform: rotate(90deg);
+}
+
+#zoomedImage {
+    max-width: 90vw;
+    max-height: 80vh;
+    border-radius: var(--border-radius);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+    border: 2px solid var(--border);
+}
+
+.zoom-info {
+    margin-top: var(--spacing-lg);
+    text-align: center;
+    background: rgba(26, 26, 46, 0.9);
+    padding: var(--spacing-md) var(--spacing-xl);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border);
+}
+
+.zoom-info h4 {
+    color: var(--primary-color);
+    margin-bottom: var(--spacing-xs);
+    font-size: 1.2rem;
+}
+
+.zoom-info p {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* Image Hover Effect for Texture Cards */
+.texture-card {
+    position: relative;
+    cursor: zoom-in;
+}
+
+.texture-card img {
+    transition: var(--transition);
+}
+
+.texture-card:hover img {
+    transform: scale(1.05);
+    box-shadow: 0 8px 30px var(--shadow-heavy);
+}
+
+.texture-card::after {
+    content: '🔍 Click to enlarge';
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-small);
+    font-size: 0.75rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: var(--transition);
+    white-space: nowrap;
+}
+
+.texture-card:hover::after {
+    opacity: 1;
+    bottom: 70px;
+}
+
+/* Mobile adjustments for new features */
+@media (max-width: 768px) {
+    .progress-steps {
+        flex-wrap: wrap;
+    }
+    
+    .progress-steps .step {
+        flex-basis: calc(50% - var(--spacing-xs));
+        margin-bottom: var(--spacing-xs);
+    }
+    
+    .control-group-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    
+    #zoomedImage {
+        max-width: 95vw;
+        max-height: 70vh;
+    }
+    
+    .zoom-close-btn {
+        top: -40px;
     }
 }
