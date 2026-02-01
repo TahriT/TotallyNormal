@@ -1,21 +1,61 @@
-MIT License
+NON-COMMERCIAL OPEN SOURCE LICENSE
 
-Copyright (c) 2025 Live Normal Web
+Copyright (c) 2025-2026 Live Normal Web
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+TERMS AND CONDITIONS:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. DEFINITIONS
+   "Software" refers to this application and all associated source code, 
+   documentation, and files.
+   "Commercial Use" means any use intended for or directed toward commercial 
+   advantage or monetary compensation.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. GRANT OF RIGHTS
+   Permission is hereby granted, free of charge, to any person obtaining a copy
+   of this Software to use, copy, modify, merge, and distribute the Software,
+   subject to the following conditions:
+
+3. NON-COMMERCIAL RESTRICTION
+   This Software may NOT be used for Commercial Use. This includes but is not 
+   limited to:
+   - Selling the Software or derivatives
+   - Using the Software in a commercial product or service
+   - Rebranding and distributing for profit
+   - Offering the Software as a paid service
+   - Any use where users are charged money or where revenue is generated
+
+4. COPYLEFT / SHARE-ALIKE REQUIREMENT
+   Any modifications or derivative works MUST:
+   - Be distributed under this same license
+   - Include complete source code
+   - Remain free and non-commercial
+   - Credit the original authors
+   - Clearly indicate what changes were made
+
+5. ATTRIBUTION
+   All copies or substantial portions of the Software must include:
+   - This complete license
+   - Copyright notice
+   - Link to the original repository
+   - Clear attribution to the original authors
+
+6. FREE AND OPEN
+   The Software MUST always remain:
+   - Free of charge for end users
+   - Open source with publicly available code
+   - Accessible without payment or subscription
+
+7. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+8. TERMINATION
+   Any violation of these terms automatically terminates your rights under this
+   license.
+
+For commercial licensing inquiries, contact the copyright holder.

@@ -140,7 +140,7 @@ Found a bug? Have an idea? I'd love to hear from you:
 
 ## License
 
-**MIT License** - Use it however you want. If TotallyNormal helps with your project, a mention would be awesome but isn't required.
+**Non-Commercial Open Source License** - This app is free and always will be. Use it, modify it, share it - just don't sell it or rebrand it for profit. If you make something cool with it, share your changes back with the same freedom. Keep it open, keep it free, and if TotallyNormal helps with your project, a mention would be totally awesome!
 
 ---
 
