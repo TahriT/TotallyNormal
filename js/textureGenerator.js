@@ -1,6 +1,6 @@
 class PBRTextureGenerator {
     constructor() {
-        this.version = '1.6.3'; // Enhanced with Gaussian blur seamless tiling
+        this.version = '1.6.3'; // Enhanced with max-opacity seamless tiling
         this.canvas = document.createElement('canvas');
         this.ctx = this.canvas.getContext('2d');
         this.offscreenCanvas = document.createElement('canvas');
@@ -815,9 +815,9 @@ class PBRTextureGenerator {
         return this.gaussianBlurVertical(horizontalPass, width, height, kernel);
     }
 
-    // Correct Seamless Tiling Algorithm using Gaussian blur cross-fade
+    // Detail-preserving seamless tiling using max/opacity edge blending
     makeSeamless(imageData) {
-        console.log('🔄 Applying Gaussian blur seamless tiling algorithm...');
+        console.log('🔄 Applying max-opacity seamless tiling algorithm...');
         console.log('📊 Input imageData:', {
             width: imageData.width,
             height: imageData.height,
@@ -848,53 +848,43 @@ class PBRTextureGenerator {
             };
         }
         
-        // Calculate blend width - use 15% for balanced seamless tiling
-        // Too low (e.g., 12%) causes visible seams, too high causes too much blur
+        // Use a moderate blend zone and a low peak opacity so edge transitions stay sharp.
         const blendWidthRatio = 0.15;
         const blendWidth = Math.max(16, Math.floor(Math.min(width, height) * blendWidthRatio));
-        // Use larger blur radius relative to blend width for smoother transitions
-        const blurRadius = Math.max(4, Math.floor(blendWidth / 3));
+        const peakOpacity = 0.16;
         
-        console.log('🔧 Gaussian seamless tiling parameters:', { 
+        console.log('🔧 Max-opacity seamless tiling parameters:', { 
             blendWidth, 
-            blurRadius,
+            peakOpacity,
             imageDimensions: `${width}x${height}`,
-            method: 'gaussian-crossfade-blending'
+            method: 'max-opacity-edge-blending'
         });
         
-        // Apply Gaussian blur seamless tiling
-        const result = this.gaussianSeamlessBlend(data, width, height, blendWidth, blurRadius);
+        const result = this.maxOpacitySeamlessBlend(data, width, height, blendWidth, peakOpacity);
         
         // Create new image data
         const seamlessImageData = new ImageData(result, width, height);
         
-        console.log(`✅ Gaussian blur seamless tiling applied with ${blendWidth}px blend zones, ${blurRadius}px blur radius`);
+        console.log(`✅ Max-opacity seamless tiling applied with ${blendWidth}px blend zones at ${Math.round(peakOpacity * 100)}% peak opacity`);
         
         return {
             imageData: seamlessImageData,
             modifications: {
                 edgeBlending: true,
                 blendWidth: blendWidth,
-                blurRadius: blurRadius,
-                method: 'gaussian-crossfade-blending'
+                peakOpacity: peakOpacity,
+                method: 'max-opacity-edge-blending'
             }
         };
     }
     
-    // Gaussian blur-based seamless tiling with cross-fade blending - Optimized for base image preservation
-    gaussianSeamlessBlend(data, width, height, blendWidth, blurRadius) {
-        console.log(`🔄 Creating seamless tiling with edge-to-edge blending (${blendWidth}px blend zone)...`);
+    // Max-blend candidate with low edge opacity preserves more detail than Gaussian softening.
+    maxOpacitySeamlessBlend(data, width, height, blendWidth, peakOpacity = 0.16) {
+        const clampedOpacity = Math.max(0.06, Math.min(0.32, peakOpacity));
+        console.log(`🔄 Creating seamless tiling with max-opacity edge blending (${blendWidth}px blend zone, ${Math.round(clampedOpacity * 100)}% peak opacity)...`);
         
         const originalData = new Uint8ClampedArray(data);
-        
-        // STEP 1: Create wrap-around blended version
-        // For each edge pixel, blend with the corresponding opposite edge pixel
         const wrapBlendedData = this.createWrapAroundBlend(originalData, width, height, blendWidth);
-        
-        // STEP 2: Apply Gaussian blur to the wrap-blended edges for smoother transitions
-        const blurredData = this.applyGaussianBlur(wrapBlendedData, width, height, blurRadius);
-        
-        // STEP 3: Blend the blurred edges back into the original, preserving center detail
         const result = new Uint8ClampedArray(data.length);
         
         for (let y = 0; y < height; y++) {
@@ -907,28 +897,26 @@ class PBRTextureGenerator {
                 const distFromTop = y / blendWidth;
                 const distFromBottom = (height - 1 - y) / blendWidth;
                 
-                // Calculate blend factor: 1 = use original, 0 = use blurred wrap-blend
                 const edgeFactorX = Math.min(1, Math.min(distFromLeft, distFromRight));
                 const edgeFactorY = Math.min(1, Math.min(distFromTop, distFromBottom));
                 
-                // Use smooth cosine interpolation for the blend
                 const smoothX = edgeFactorX < 1 ? 0.5 * (1 - Math.cos(Math.PI * edgeFactorX)) : 1;
                 const smoothY = edgeFactorY < 1 ? 0.5 * (1 - Math.cos(Math.PI * edgeFactorY)) : 1;
+                const edgeOpacity = (1 - Math.min(smoothX, smoothY)) * clampedOpacity;
                 
-                // Combine: minimum gives rectangular blend zones at edges
-                const blendFactor = Math.min(smoothX, smoothY);
-                
-                for (let c = 0; c < 4; c++) {
+                for (let c = 0; c < 3; c++) {
+                    const maxBlendValue = Math.max(originalData[idx + c], wrapBlendedData[idx + c]);
                     result[idx + c] = Math.round(
-                        originalData[idx + c] * blendFactor + 
-                        blurredData[idx + c] * (1 - blendFactor)
+                        originalData[idx + c] * (1 - edgeOpacity) + 
+                        maxBlendValue * edgeOpacity
                     );
                 }
+
+                result[idx + 3] = originalData[idx + 3];
             }
         }
         
-        // STEP 4: Final edge refinement to ensure pixel-perfect seams
-        this.refineSeamEdges(result, width, height, blurRadius);
+        this.refineSeamEdges(result, width, height, Math.max(2, Math.floor(blendWidth / 3)));
         
         return result;
     }
@@ -1048,10 +1036,10 @@ class PBRTextureGenerator {
     }
     
     // Refine edges to ensure perfect seamless matching
-    refineSeamEdges(data, width, height, blurRadius) {
+    refineSeamEdges(data, width, height, refinementRadius) {
         console.log('🎯 Refining seam edges for perfect pixel matching...');
         
-        const refinementWidth = Math.min(blurRadius * 2, Math.floor(Math.min(width, height) * 0.08));
+        const refinementWidth = Math.max(1, Math.min(refinementRadius * 2, Math.floor(Math.min(width, height) * 0.08)));
         
         // STEP 1: Force exact edge pixel matching (offset = 0)
         // Left and right edge pixels must be identical for seamless horizontal tiling
@@ -1117,12 +1105,12 @@ class PBRTextureGenerator {
         console.log('✅ Seam edges refined with pixel-perfect matching');
     }
     
-    // Legacy method for backward compatibility - now uses Gaussian approach
+    // Legacy method for backward compatibility - now uses max-opacity edge blending
     blendOpposingEdges(data, width, height, blendWidth) {
-        console.log(`🔄 Blending opposing edges with Gaussian falloff (${blendWidth}px zones)...`);
+        console.log(`🔄 Blending opposing edges with max-opacity falloff (${blendWidth}px zones)...`);
         
-        const blurRadius = Math.max(2, Math.floor(blendWidth / 4));
-        const result = this.gaussianSeamlessBlend(data, width, height, blendWidth, blurRadius);
+        const peakOpacity = Math.max(0.08, Math.min(0.24, (blendWidth / Math.max(1, Math.min(width, height))) * 1.05));
+        const result = this.maxOpacitySeamlessBlend(data, width, height, blendWidth, peakOpacity);
         
         // Copy result back to data
         for (let i = 0; i < data.length; i++) {
@@ -1781,9 +1769,9 @@ class PBRTextureGenerator {
         });
     }
     
-    // Dynamic seamless tiling with custom blend amount using Gaussian blur
+    // Dynamic seamless tiling with custom blend amount using max-opacity edge blending
     makeDynamicSeamless(imageData, customBlendAmount = 0.15) {
-        console.log('🔄 Applying dynamic Gaussian seamless tiling with custom blend amount:', customBlendAmount);
+        console.log('🔄 Applying dynamic max-opacity seamless tiling with custom blend amount:', customBlendAmount);
         
         const width = imageData.width;
         const height = imageData.height;
@@ -1792,32 +1780,31 @@ class PBRTextureGenerator {
         // Calculate blend width based on custom blend amount (clamped between 5% and 30%)
         const clampedBlendAmount = Math.max(0.05, Math.min(0.30, customBlendAmount));
         const blendWidth = Math.max(8, Math.floor(Math.min(width, height) * clampedBlendAmount));
-        const blurRadius = Math.max(2, Math.floor(blendWidth / 4));
+        const peakOpacity = Math.max(0.08, Math.min(0.24, clampedBlendAmount * 1.05));
         
-        console.log('🔧 Dynamic Gaussian tiling parameters:', { 
+        console.log('🔧 Dynamic max-opacity tiling parameters:', { 
             blendWidth, 
-            blurRadius,
+            peakOpacity,
             customBlendAmount: clampedBlendAmount,
             imageDimensions: `${width}x${height}`,
-            method: 'dynamic-gaussian-blending'
+            method: 'dynamic-max-opacity-blending'
         });
         
-        // Apply Gaussian seamless blending
-        const result = this.gaussianSeamlessBlend(data, width, height, blendWidth, blurRadius);
+        const result = this.maxOpacitySeamlessBlend(data, width, height, blendWidth, peakOpacity);
         
         // Create new image data
         const seamlessImageData = new ImageData(result, width, height);
         
-        console.log(`✅ Dynamic Gaussian seamless tiling applied with ${blendWidth}px blend zones, ${blurRadius}px blur`);
+        console.log(`✅ Dynamic max-opacity seamless tiling applied with ${blendWidth}px blend zones at ${Math.round(peakOpacity * 100)}% peak opacity`);
         
         return {
             imageData: seamlessImageData,
             modifications: {
                 edgeBlending: true,
                 blendWidth: blendWidth,
-                blurRadius: blurRadius,
+                peakOpacity: peakOpacity,
                 customBlendAmount: clampedBlendAmount,
-                method: 'dynamic-gaussian-blending'
+                method: 'dynamic-max-opacity-blending'
             }
         };
     }

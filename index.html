@@ -640,13 +640,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="debug.js"></script>
     <script>
-        // Simple but effective cache busting with timestamp
-        const cacheBustTimestamp = Date.now();
-        console.log('📦 Loading scripts with timestamp cache busting:', cacheBustTimestamp);
+        console.log('📦 Loading scripts with cache-bust token:', '20260527d');
     </script>
-    <script src="js/undoRedo.js?v=1.6.3" defer></script>
-    <script src="js/textureGenerator.js?v=1.6.3" defer></script>
-    <script src="js/materialViewer3D.js?v=1.6.3" defer></script>
-    <script src="js/app.js?v=1.6.3" defer></script>
+    <script src="debug.js?v=20260527d" defer></script>
+    <script src="js/undoRedo.js?v=1.6.3&cb=20260527d" defer></script>
+    <script src="js/textureGenerator.js?v=1.6.3&cb=20260527d" defer></script>
+    <script src="js/materialViewer3D.js?v=1.6.3&cb=20260527d" defer></script>
+    <script src="js/app.js?v=1.6.3&cb=20260527d" defer></script>
 </body>
 </html>

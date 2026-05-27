@@ -111,7 +111,7 @@ For the curious minds:
   - Variance-based roughness calculation
   - Multi-pass ambient occlusion with local contrast
 - **Seamless Tiling Algorithm**:
-  - Wrap-around edge blending with Gaussian blur
+  - Wrap-around edge blending with max/opacity compositing
   - Corner averaging for diagonal tiling
   - Configurable blend zones (5-30% of texture size)
 - **3D Preview Engine**: 
@@ -169,9 +169,9 @@ Found a bug? Have an idea? I'd love to hear from you:
 - Escape: Close modals and image zoom overlay
 
 **Seamless Tiling Enhancements**
-- Improved Gaussian blur algorithm with proper sigma calculation (radius/2)
-- Increased blend zone width to 15% for smoother transitions
-- Rewrote edge-to-edge blending algorithm for better wrap-around
+- Replaced the Gaussian blur seam pass with a max/opacity edge blend to preserve detail
+- Kept the 15% blend zone for stable edge transitions without softening the center
+- Reworked edge-to-edge blending to use low-opacity max compositing before seam refinement
 - Added corner blending for diagonal tiling perfection
 - Fixed pixel-perfect edge matching to eliminate visible seams
 - Blend amount slider now properly saves undo states

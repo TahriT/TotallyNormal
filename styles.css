@@ -73,32 +73,58 @@ body {
 }
 
 .header .container {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    padding: var(--spacing-md);
+    padding: 0.75rem var(--spacing-md);
     position: relative;
+}
+
+.logo {
+    grid-column: 2;
+    justify-self: center;
+    text-align: center;
 }
 
 .version-info {
     position: absolute;
     top: 50%;
-    right: 380px; /* Position further left to avoid capture button */
+    right: 280px;
     transform: translateY(-50%);
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    font-size: 0.8rem;
-    opacity: 0.7;
+    gap: 0.2rem;
+    font-size: 0.74rem;
+    opacity: 0.78;
     font-family: 'Courier New', monospace;
     font-weight: 500;
     z-index: 5; /* Lower than capture button */
 }
 
+.version-info__meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+}
+
+.version-info__badges {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.25rem;
+}
+
+.version-info__badges:empty,
+.header-controls.is-empty,
+.header-controls:empty {
+    display: none;
+}
+
 .version-info .build-date {
-    font-size: 0.7rem;
-    opacity: 0.5;
-    margin-top: -2px;
+    font-size: 0.66rem;
+    opacity: 0.58;
+    margin-top: 0;
 }
 
 /* Version Warning */
@@ -162,10 +188,11 @@ body {
 }
 
 .logo h1 {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
     font-weight: 700;
     color: var(--primary-color);
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.1rem;
+    line-height: 1.05;
 }
 
 .logo h1 i {
@@ -173,29 +200,32 @@ body {
 }
 
 .logo p {
-    font-size: 0.875rem;
+    font-size: 0.78rem;
     color: var(--text-light);
     font-weight: 400;
 }
 
 .nav {
     display: flex;
-    gap: var(--spacing-sm);
+    gap: 0.35rem;
+    grid-column: 3;
+    justify-self: end;
 }
 
 .nav-btn {
     background: none;
     border: none;
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: 0.4rem 0.7rem;
     border-radius: var(--border-radius);
     color: var(--text-secondary);
     cursor: pointer;
     transition: var(--transition);
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 0.25rem;
-    font-size: 0.875rem;
+    gap: 0.35rem;
+    font-size: 0.82rem;
+    line-height: 1;
 }
 
 .nav-btn:hover,
@@ -207,12 +237,12 @@ body {
 }
 
 .nav-btn i {
-    font-size: 1.2rem;
+    font-size: 0.95rem;
 }
 
 /* Main Content */
 .main {
-    margin-top: 100px;
+    margin-top: 88px;
     padding: var(--spacing-xl) 0;
 }
 
@@ -864,7 +894,7 @@ body {
 .header-controls {
     display: flex;
     align-items: center;
-    gap: var(--spacing-md);
+    gap: 0.5rem;
 }
 
 .network-status {
@@ -876,6 +906,27 @@ body {
     font-size: 0.85rem;
     font-weight: 500;
     transition: var(--transition);
+}
+
+.version-info .network-status,
+.version-info .pwa-install-btn {
+    gap: 0;
+    min-width: 24px;
+    min-height: 24px;
+    padding: 3px 6px;
+    justify-content: center;
+    font-size: 0.72rem;
+    box-shadow: none;
+}
+
+.version-info .network-status span,
+.version-info .pwa-install-btn span {
+    display: none;
+}
+
+.version-info .network-status i,
+.version-info .pwa-install-btn i {
+    font-size: 0.78rem;
 }
 
 .network-status.online {
@@ -1876,9 +1927,10 @@ body {
 /* Responsive Design */
 @media (max-width: 768px) {
     .header .container {
-        flex-direction: column;
-        gap: var(--spacing-md);
-        padding: var(--spacing-md);
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: var(--spacing-sm);
+        padding: 0.65rem var(--spacing-md);
     }
     
     .nav {
@@ -1887,7 +1939,7 @@ body {
     }
     
     .main {
-        margin-top: 140px;
+        margin-top: 122px;
         padding: var(--spacing-lg) 0;
     }
     
@@ -2315,16 +2367,22 @@ body {
 /* Resolution Selector Styles */
 .resolution-selector {
     display: flex;
+    flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-md);
-    flex-wrap: wrap;
+    margin-bottom: 0;
+    text-align: center;
+    width: 160px;
 }
 
 .resolution-selector label {
+    display: block;
+    width: 100%;
     color: var(--text-primary);
     font-weight: 500;
     white-space: nowrap;
+    text-align: center;
 }
 
 .resolution-select {
@@ -2337,6 +2395,8 @@ body {
     cursor: pointer;
     transition: var(--transition);
     min-width: 160px;
+    text-align: center;
+    text-align-last: center;
 }
 
 .resolution-select:focus {
@@ -2352,16 +2412,22 @@ body {
 
 .edge-detection-selector {
     display: flex;
+    flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-md);
-    flex-wrap: wrap;
+    margin-bottom: 0;
+    text-align: center;
+    width: 200px;
 }
 
 .edge-detection-selector label {
+    display: block;
+    width: 100%;
     color: var(--text-primary);
     font-weight: 500;
     white-space: nowrap;
+    text-align: center;
 }
 
 .edge-detection-select {
@@ -2374,6 +2440,8 @@ body {
     cursor: pointer;
     transition: var(--transition);
     min-width: 200px;
+    text-align: center;
+    text-align-last: center;
 }
 
 .edge-detection-select:focus {
@@ -2742,8 +2810,10 @@ body {
     
     .resolution-selector {
         flex-direction: column;
-        align-items: flex-start;
+        align-items: center;
         width: 100%;
+        max-width: 200px;
+        margin: 0 auto;
     }
     
     .resolution-select {
@@ -2753,6 +2823,7 @@ body {
     
     /* Fix header on mobile */
     .header .container {
+        display: flex;
         flex-wrap: wrap;
         gap: var(--spacing-sm);
         position: relative;
@@ -2767,19 +2838,26 @@ body {
         order: 2;
         width: 100%;
         justify-content: center;
-        margin-top: var(--spacing-sm);
+        margin-top: 0.15rem;
+        gap: 0.25rem;
     }
     
     .version-info {
         position: absolute;
         top: var(--spacing-xs);
         right: 0;
-        font-size: 0.7rem;
-        opacity: 0.7;
+        transform: none;
+        font-size: 0.66rem;
+        opacity: 0.8;
         background: rgba(0, 0, 0, 0.5);
-        padding: 2px 6px;
+        padding: 4px 6px;
         border-radius: 4px;
-        white-space: nowrap;
+        white-space: normal;
+        max-width: 120px;
+    }
+
+    .version-info__badges {
+        gap: 0.2rem;
     }
 }
 
@@ -2805,16 +2883,16 @@ body {
     }
     
     .version-info {
-        font-size: 0.6rem;
-        padding: 1px 4px;
+        font-size: 0.58rem;
+        padding: 3px 4px;
     }
     
     .logo h1 {
-        font-size: 1.2rem;
+        font-size: 1.1rem;
     }
     
     .logo p {
-        font-size: 0.8rem;
+        font-size: 0.72rem;
     }
 }
 

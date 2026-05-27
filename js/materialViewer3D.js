@@ -75,20 +75,11 @@ class MaterialViewer3D {
             console.log('✅ Scene created');
 
             // Camera setup
-            let width = this.container.clientWidth;
-            let height = this.container.clientHeight;
+            let { width, height } = this.getContainerDimensions();
             
-            // Handle zero dimensions by using fallback sizes
-            if (width === 0 || height === 0) {
-                console.warn('🚨 Container has zero dimensions, using fallback sizes');
-                width = Math.max(width, 800); // Fallback width
-                height = Math.max(height, 500); // Fallback height
-                
-                // Force container size
-                this.container.style.width = width + 'px';
-                this.container.style.height = height + 'px';
-                
-                console.log('🔧 Applied fallback dimensions:', { width, height });
+            if (width === 100 || height === 100) {
+                console.warn('🚨 Container has zero dimensions, using responsive fallback sizes');
+                console.log('🔧 Using responsive fallback dimensions:', { width, height });
             }
             
             this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
@@ -144,6 +135,73 @@ class MaterialViewer3D {
             console.error('Failed to initialize 3D viewer:', error);
             return false;
         }
+    }
+
+    getContainerDimensions() {
+        if (!this.container) {
+            return { width: 100, height: 100 };
+        }
+
+        const rect = this.container.getBoundingClientRect();
+        const computedStyle = window.getComputedStyle(this.container);
+        const cssWidth = parseFloat(computedStyle.width);
+        const cssHeight = parseFloat(computedStyle.height);
+        const parent = this.container.parentElement;
+        const parentRect = parent ? parent.getBoundingClientRect() : null;
+        const viewportWidth = Math.floor(
+            window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 0
+        );
+        const viewportHeight = Math.floor(
+            window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0
+        );
+
+        const availableWidth = Math.max(
+            100,
+            Math.min(
+                parent?.clientWidth || parentRect?.width || viewportWidth || Infinity,
+                viewportWidth || Infinity
+            )
+        );
+
+        const widthCandidates = [
+            this.container.clientWidth,
+            rect.width,
+            cssWidth,
+            this.container.offsetWidth
+        ].filter((value) => Number.isFinite(value) && value > 0);
+
+        const heightCandidates = [
+            this.container.clientHeight,
+            rect.height,
+            cssHeight,
+            this.container.offsetHeight
+        ].filter((value) => Number.isFinite(value) && value > 0);
+
+        const width = widthCandidates.length > 0
+            ? Math.max(100, Math.min(Math.max(...widthCandidates), availableWidth))
+            : availableWidth;
+
+        const fallbackHeight = Math.max(
+            100,
+            Math.round((viewportHeight || 500) * (viewportWidth <= 768 ? 0.5 : 0.6))
+        );
+
+        const height = heightCandidates.length > 0
+            ? Math.max(100, Math.max(...heightCandidates))
+            : fallbackHeight;
+
+        return {
+            width,
+            height,
+            rect,
+            computedStyle,
+            cssWidth,
+            cssHeight,
+            parent,
+            parentRect,
+            viewportWidth,
+            viewportHeight
+        };
     }
 
     setupLighting() {
@@ -349,31 +407,18 @@ class MaterialViewer3D {
     handleResize() {
         if (!this.container || !this.renderer || !this.camera) return;
 
-        // Get container dimensions - prioritize clientWidth/Height as they account for padding correctly
-        const rect = this.container.getBoundingClientRect();
-        const computedStyle = window.getComputedStyle(this.container);
-        
-        // Parse CSS dimensions if available
-        const cssWidth = parseFloat(computedStyle.width);
-        const cssHeight = parseFloat(computedStyle.height);
-        
-        // Prioritize clientWidth/Height as they represent the actual content area
-        // (excluding borders and scrollbars, accounting for padding correctly)
-        const width = Math.max(
-            this.container.clientWidth || 0,     // Best for content area
-            rect.width || 0,                     // Includes borders
-            cssWidth || 0,                       // CSS computed width
-            this.container.offsetWidth || 0,     // Includes borders + padding
-            100 // Minimum fallback
-        );
-        
-        const height = Math.max(
-            this.container.clientHeight || 0,    // Best for content area
-            rect.height || 0,                    // Includes borders
-            cssHeight || 0,                      // CSS computed height
-            this.container.offsetHeight || 0,    // Includes borders + padding
-            100 // Minimum fallback
-        );
+        const {
+            width,
+            height,
+            rect,
+            computedStyle,
+            cssWidth,
+            cssHeight,
+            parent,
+            parentRect,
+            viewportWidth,
+            viewportHeight
+        } = this.getContainerDimensions();
 
         // Only resize if dimensions actually changed
         const currentSize = this.renderer.getSize(new THREE.Vector2());
@@ -393,12 +438,11 @@ class MaterialViewer3D {
         this.renderer.setPixelRatio(pixelRatio);
         
         // Enhanced debugging for container sizing
-        const parent = this.container.parentElement;
-        const parentRect = parent ? parent.getBoundingClientRect() : null;
         const parentComputedStyle = parent ? window.getComputedStyle(parent) : null;
         
         console.log(`🔄 3D Viewer resized to ${width}x${height} (pixel ratio: ${pixelRatio})`);
         console.log(`📏 Container: client(${this.container.clientWidth}x${this.container.clientHeight}), rect(${rect.width}x${rect.height}), css(${cssWidth}x${cssHeight})`);
+        console.log(`📱 Viewport: ${viewportWidth}x${viewportHeight}`);
         if (parent) {
             console.log(`📦 Parent: client(${parent.clientWidth}x${parent.clientHeight}), rect(${parentRect.width}x${parentRect.height}), padding(${parentComputedStyle.paddingLeft}, ${parentComputedStyle.paddingRight})`);
         }

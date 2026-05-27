@@ -481,18 +481,38 @@ class LiveNormalApp {
     }
 
     displayVersionInfo() {
-        // Add version to footer or header
+        const header = document.querySelector('.header .container');
+        if (!header) {
+            return;
+        }
+
+        const existingDisplay = header.querySelector('.version-info');
+        if (existingDisplay) {
+            existingDisplay.remove();
+        }
+
         const versionDisplay = document.createElement('div');
         versionDisplay.className = 'version-info';
         versionDisplay.innerHTML = `
-            <span>v${this.version.version}</span>
-            <span class="build-date">${this.version.buildDate}</span>
+            <div class="version-info__meta">
+                <span>v${this.version.version}</span>
+                <span class="build-date">${this.version.buildDate}</span>
+            </div>
+            <div class="version-info__badges"></div>
         `;
+
+        const badgeRail = versionDisplay.querySelector('.version-info__badges');
+        [this.networkStatus, this.pwaInstallBtn].forEach((element) => {
+            if (element) {
+                badgeRail.appendChild(element);
+            }
+        });
         
-        // Add to header or create version indicator
-        const header = document.querySelector('.header .container');
-        if (header) {
-            header.appendChild(versionDisplay);
+        header.appendChild(versionDisplay);
+
+        const headerControls = header.querySelector('.header-controls');
+        if (headerControls && headerControls.childElementCount === 0) {
+            headerControls.classList.add('is-empty');
         }
         
         // Check for version mismatches with texture generator
@@ -2075,6 +2095,11 @@ class LiveNormalApp {
 
         try {
             console.log('🔄 Starting tiling application to current material...');
+
+            const tilingResolution = parseInt(
+                this.currentMaterial.resolution || this.currentMaterial.settings?.resolution || this.resolutionSelect?.value || '512',
+                10
+            );
             
             // Show loading state
             this.applyTilingBtn.disabled = true;
@@ -2088,7 +2113,7 @@ class LiveNormalApp {
                 const originalDataUrl = this.currentMaterial.textures[textureType];
                 if (originalDataUrl) {
                     console.log(`🔄 Applying tiling to ${textureType} texture...`);
-                    const tilingResult = await window.textureGenerator.applyTilingToTexture(originalDataUrl, 512);
+                    const tilingResult = await window.textureGenerator.applyTilingToTexture(originalDataUrl, tilingResolution);
                     tiledTextures[textureType] = tilingResult.dataUrl;
                 }
             }
